@@ -1,0 +1,23 @@
+{
+  "name": "goldensample-seo",
+  "description": "GoldenSample SEO skills for Claude Code: launch, calendar and runbooks for a small site, with scripts and cron workflows.",
+  "owner": {
+    "name": "GoldenSample",
+    "url": "https://github.com/GoldenSample"
+  },
+  "plugins": [
+    {
+      "name": "seo-ops",
+      "source": "./",
+      "description": "SEO and GEO for a small site or store: one-time launch steps, a recurring calendar, event runbooks, live-site checks, IndexNow, query gaps and GitHub Actions cron workflows.",
+      "author": {
+        "name": "GoldenSample"
+      },
+      "homepage": "https://github.com/GoldenSample/seo-ops",
+      "repository": "https://github.com/GoldenSample/seo-ops",
+      "license": "MIT",
+      "keywords": ["seo", "geo", "yandex", "google", "indexnow", "github-actions"],
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# Copy to .github/workflows/seo-weekly.yml in your site repository.
+# Needs: repository variable SEO_SITE. The report is in the job summary of each run.
+# Calendar task: weekly-audit.
+name: seo-weekly
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"   # 05:23 UTC every Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seo:
+    uses: GoldenSample/seo-ops/.github/workflows/seo-cron.yml@v1
+    with:
+      site: ${{ vars.SEO_SITE }}
+      mode: weekly

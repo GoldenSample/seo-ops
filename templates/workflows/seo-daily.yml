@@ -1,0 +1,21 @@
+# Copy to .github/workflows/seo-daily.yml in your site repository.
+# Needs: repository variable SEO_SITE (for example example.com); optional secret INDEXNOW_KEY.
+# Calendar tasks: daily-health, daily-indexnow.
+name: seo-daily
+
+on:
+  schedule:
+    - cron: "17 4 * * *"   # 04:17 UTC every day; GitHub runs schedules in UTC and may start them late under load
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seo:
+    uses: GoldenSample/seo-ops/.github/workflows/seo-cron.yml@v1
+    with:
+      site: ${{ vars.SEO_SITE }}
+      mode: daily
+    secrets:
+      INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}

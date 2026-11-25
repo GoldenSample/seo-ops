@@ -1,0 +1,22 @@
+# Copy to .github/workflows/seo-monthly.yml in your site repository.
+# Needs: repository variable SEO_SITE and the site calendar seo-calendar.json in the repository root
+#   (python scripts/seo_calendar.py init --site example.com --launch YYYY-MM-DD, then commit the file).
+# Opens one issue with the human tasks due in the next 31 days. Calendar task: monthly-calendar-issue.
+name: seo-monthly
+
+on:
+  schedule:
+    - cron: "41 6 1 * *"   # 06:41 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  seo:
+    uses: GoldenSample/seo-ops/.github/workflows/seo-cron.yml@v1
+    with:
+      site: ${{ vars.SEO_SITE }}
+      mode: monthly
+      calendar: seo-calendar.json

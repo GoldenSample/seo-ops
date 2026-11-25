@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+Thumbs.db
+# local run outputs
+/out/
+seo-check.json
+seo-check.md
+indexnow-sent.json
+indexnow-state.json

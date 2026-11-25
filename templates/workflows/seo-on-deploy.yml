@@ -1,0 +1,36 @@
+# Copy to .github/workflows/seo-on-deploy.yml in your site repository.
+# Runs after a deploy: the live-site check, then IndexNow for URLs whose lastmod changed in the last 3 hours.
+# Start it in one of three ways:
+#   1. from your deploy workflow, as a last job:
+#        seo:
+#          needs: deploy
+#          uses: ./.github/workflows/seo-on-deploy.yml
+#          secrets: inherit
+#   2. from a deploy script on a server:
+#        curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+#          https://api.github.com/repos/OWNER/REPO/dispatches -d '{"event_type":"seo-deploy"}'
+#      ($TOKEN: a fine-grained token with Contents read and write on this repository only)
+#   3. by hand: Actions, seo-on-deploy, Run workflow.
+# Calendar task: event-deploy.
+name: seo-on-deploy
+
+on:
+  workflow_call:
+    secrets:
+      INDEXNOW_KEY:
+        required: false
+  repository_dispatch:
+    types: [seo-deploy]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seo:
+    uses: GoldenSample/seo-ops/.github/workflows/seo-cron.yml@v1
+    with:
+      site: ${{ vars.SEO_SITE }}
+      mode: deploy
+    secrets:
+      INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
