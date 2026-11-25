@@ -11,7 +11,7 @@ What the scripts send, and where:
 | `scripts/gsc_gaps.py` | GET of the sitemap and each page title, 1 per second, only with `--sitemap` | the sitemap host |
 | `scripts/seo_calendar.py` | none | local files only |
 
-Every request carries a User-Agent that names the tool and links to this repository, for example `seo-ops-check/1.0.0 (+https://github.com/GoldenSample/seo-ops)`.
+Every request carries a User-Agent that names the tool and links to this repository, for example `seo-ops-check/<version> (+https://github.com/GoldenSample/seo-ops)`.
 
 Your Search Console or Webmaster exports stay on your machine: `gsc_gaps.py` reads them locally and sends none of their rows anywhere.
 

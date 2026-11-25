@@ -1,7 +1,7 @@
 {
   "name": "seo-ops",
   "displayName": "SEO Ops",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SEO and GEO for a small site or store, split into one-time launch steps, a recurring calendar and event runbooks: Google, Yandex, AI answers, content, measurement, local profiles, query gaps. Ships standard-library Python checks and GitHub Actions cron workflows. Every fact carries a source and a checked date.",
   "author": {
     "name": "GoldenSample",

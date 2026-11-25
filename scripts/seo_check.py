@@ -40,7 +40,7 @@ import zlib
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 UA = "seo-ops-check/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 MIN_INTERVAL = 0.5          # 2 requests per second
 TIMEOUT = 15

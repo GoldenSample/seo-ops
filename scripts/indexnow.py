@@ -39,7 +39,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import timezone, timedelta
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 UA = "seo-ops-indexnow/1.0 (+https://github.com/GoldenSample/seo-ops)"
 ENDPOINT = "https://api.indexnow.org/indexnow"
 MAX_BATCH = 10000

@@ -2,6 +2,7 @@ name: selftest
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -10,30 +11,42 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.python }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9", "3.12"]
+        include:
+          # The oldest supported Python. actions/python-versions has no 3.9 build for Ubuntu 26.04 (ubuntu-latest).
+          - python: "3.9"
+            os: ubuntu-24.04
+          - python: "3.12"
+            os: ubuntu-latest
+          # The runner's own python3: the interpreter seo-cron.yml uses.
+          - python: system
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-python@v7
+        if: matrix.python != 'system'
         with:
           python-version: ${{ matrix.python }}
-      - name: seo_check.py self-test (one planted defect per check)
-        run: python -W error scripts/seo_check.py --selftest
+      - name: interpreter
+        run: python3 --version
+      - name: seo_check.py self-test (planted defects)
+        run: python3 -W error scripts/seo_check.py --selftest
       - name: robots.txt matching
-        run: python -W error tests/test_robots.py scripts/seo_check.py
+        run: python3 -W error tests/test_robots.py scripts/seo_check.py
       - name: calendar
-        run: python -W error tests/test_calendar.py scripts/seo_calendar.py
+        run: python3 -W error tests/test_calendar.py scripts/seo_calendar.py
       - name: query gaps
-        run: python -W error tests/test_gaps.py scripts/gsc_gaps.py
+        run: python3 -W error tests/test_gaps.py scripts/gsc_gaps.py
       - name: IndexNow
-        run: python -W error tests/test_indexnow.py scripts/indexnow.py
+        run: python3 -W error tests/test_indexnow.py scripts/indexnow.py
       - name: calendar template
-        run: python scripts/seo_calendar.py validate --calendar templates/calendar.json --template
+        run: python3 scripts/seo_calendar.py validate --calendar templates/calendar.json --template
       - name: plugin manifests are valid JSON
-        run: python -c "import json; [json.load(open(p, encoding='utf-8')) for p in ('.claude-plugin/plugin.json', '.claude-plugin/marketplace.json')]; print('ok')"
+        run: python3 -c "import json; [json.load(open(p, encoding='utf-8')) for p in ('.claude-plugin/plugin.json', '.claude-plugin/marketplace.json')]; print('ok')"

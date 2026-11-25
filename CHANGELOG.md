@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 (2026-11-25)
+
+- CI: Python 3.9 runs on ubuntu-24.04, because actions/python-versions has no 3.9 build for Ubuntu 26.04 (ubuntu-latest); a third job runs the tests with the runner's own python3, the interpreter `seo-cron.yml` uses. CI runs on pushes to main and on pull requests, not on tags.
+- Skills, scripts and the cron workflows work as in 1.0.0; only the version strings changed. The `v1` tag stays on 1.0.0, so callers of `@v1` run the same cron code.
+
 ## 1.0.0 (2026-11-25)
 
 First release.
