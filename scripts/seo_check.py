@@ -40,7 +40,7 @@ import zlib
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 UA = "seo-ops-check/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 MIN_INTERVAL = 0.5          # 2 requests per second
 TIMEOUT = 15
@@ -664,6 +664,25 @@ def check_response_time(home):
     return R("response-time", "OK", "home page took %d ms from this runner" % ms)
 
 
+HASH_HEX = re.compile(r"^(?=[^0-9]*[0-9])[0-9a-f]{8,}$", re.I)
+HASH_B64 = re.compile(r"^(?=[^0-9]*[0-9])(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z])[A-Za-z0-9_-]{8,}$")
+
+
+def has_content_hash(path):
+    """A build hash in the URL path: main.3f9a1c2b.js, index-BGUm0LUZ.js, /_next/static/chunks/app-4b8e2c1d3a5f6e7d.js.
+    Such a URL changes with the content, so a year of cache is safe. A hex hash needs a digit; a base64url hash needs
+    a digit, a lower and an upper case letter, so names like jquery-3.7.1.min.js or chunk-vendors.js do not count."""
+    for seg in [s for s in path.split("/") if s]:
+        parts = seg.split(".")
+        if len(parts) > 1:
+            parts = parts[:-1]  # the extension
+        for part in parts:
+            for tok in {part, part.rsplit("-", 1)[-1], part.rsplit("_", 1)[-1]}:
+                if HASH_HEX.match(tok) or HASH_B64.match(tok):
+                    return True
+    return False
+
+
 def check_static_cache(asset_url, resp):
     if asset_url is None:
         return R("static-cache", "SKIP", "no same-origin JS or CSS file on the home page")
@@ -673,10 +692,16 @@ def check_static_cache(asset_url, resp):
     cc = resp.h("cache-control")
     m = re.search(r"max-age=(\d+)", cc)
     name = urllib.parse.urlsplit(asset_url).path
-    if resp.status == 200 and ("immutable" in cc.lower() or (m and int(m.group(1)) >= 2592000)):
+    if resp.status != 200:
+        return R("static-cache", "WARN", "%s: status %d, Cache-Control: %s" % (name, resp.status, cc or "none"))
+    if "immutable" in cc.lower() or (m and int(m.group(1)) >= 2592000):
         return R("static-cache", "OK", "%s: %s" % (name, cc))
-    return R("static-cache", "WARN", "%s: status %d, Cache-Control: %s (hashed files can be cached for a year)"
-             % (name, resp.status, cc or "none"))
+    if has_content_hash(name):
+        return R("static-cache", "WARN", "%s: Cache-Control: %s; the name carries a content hash, so the file can be "
+                 "cached for a year: public, max-age=31536000, immutable" % (name, cc or "none"))
+    return R("static-cache", "INFO", "%s: Cache-Control: %s; the name has no content hash, so a short cache is right. "
+             "For a year of cache, put a content hash in the file name (or a version in the query) first"
+             % (name, cc or "none"))
 
 
 def check_source_maps(asset_url, map_resp):
@@ -982,7 +1007,9 @@ def pick_sample(locs, host, n):
     groups = {}
     for p in paths:
         groups.setdefault(p.strip("/").split("/")[0], []).append(p)
-    order = [list(g) for g in groups.values()]
+    # Bigger sections first (ties keep the sitemap order): a large section listed after many small ones,
+    # such as product pages or docs, must not wait until every small section had its turn.
+    order = sorted((list(g) for g in groups.values()), key=len, reverse=True)
     out = []
     while len(out) < n and any(order):
         for g in order:
@@ -1201,6 +1228,31 @@ def selftest():
     product = _ld([{"@type": "Store", "@id": "a"}, {"@type": "Product", "offers": {
         "@type": "Offer", "price": "10", "priceCurrency": "EUR", "availability": "https://schema.org/InStock"}}])
     want("full Product", check_product_offer([_page("https://x.test/p", _html(ld=product))]), ("OK",))
+    want("hashed file cached a year", check_static_cache("https://x.test/assets/index-BGUm0LUZ.js", Resp(
+        200, {"cache-control": "public, max-age=31536000, immutable"})), ("OK",))
+    want("unhashed file, short cache", check_static_cache("https://x.test/app.js", Resp(
+        200, {"cache-control": "max-age=0, must-revalidate"})), ("INFO",))
+
+    print("Sampling and file names:")
+
+    def need(name, cond):
+        print("  %-4s %-16s %s" % ("ok" if cond else "MISS", "helper", name))
+        if not cond:
+            fails.append("helper: " + name)
+    small = ["https://x.test/p%d" % i for i in range(36)]
+    big = ["https://x.test/docs/d%d" % i for i in range(33)]
+    for n in (2, 11, 36):
+        got = pick_sample(small + big, "x.test", n)[0]
+        need("a big section after %d small ones is in a sample of %d" % (len(small), n),
+             len(got) == n and any("/docs/" in u for u in got))
+    got = pick_sample(big + small, "x.test", 11)[0]
+    need("small sections still get their turn", sum("/docs/" in u for u in got) == 1)
+    for path, want_hash in (("/assets/main.3f9a1c2b.js", True), ("/assets/index-BGUm0LUZ.js", True),
+                            ("/_next/static/chunks/app-4b8e2c1d3a5f6e7d.js", True), ("/_nuxt/Cq1Wx3Yz.js", True),
+                            ("/2.4f8e9a1c.chunk.js", True), ("/app.js", False), ("/main.js", False),
+                            ("/js/jquery-3.7.1.min.js", False), ("/css/chunk-vendors.css", False),
+                            ("/bootstrap5.bundle.min.js", False), ("/theme/style.css", False)):
+        need("content hash in %s: %s" % (path, want_hash), has_content_hash(path) is want_hash)
 
     print("Defects (each check must give FAIL or WARN):")
     bad = ("FAIL", "WARN")
@@ -1256,7 +1308,8 @@ def selftest():
     want("slash duplicate", check_trailing_slash(Resp(200, {}, "", "https://x.test/a/"), "https://x.test/a", None), ("WARN",))
     want("open redirect", check_open_redirect(Resp(301, {"location": "https://example.com/"}, "", "https://x.test//example.com/"),
                                               "x.test"), ("FAIL",))
-    want("static file without cache", check_static_cache("https://x.test/a.js", Resp(200, {"cache-control": "no-cache"})), ("WARN",))
+    want("hashed static file without cache", check_static_cache("https://x.test/assets/app.3f9a1c2b.js",
+                                                                Resp(200, {"cache-control": "no-cache"})), ("WARN",))
     want("public source map", check_source_maps("https://x.test/a.js", Resp(200, {}, "")), ("WARN",))
     want("no HSTS", check_security_headers(Resp(200, {})), ("WARN",))
     want("no compression or HTTP/2", check_transport("", "", ("http/1.1", "TLSv1.3", 90, "")), ("WARN",))

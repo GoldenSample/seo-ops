@@ -1,5 +1,6 @@
 # Copy to .github/workflows/seo-weekly.yml in your site repository.
-# Needs: repository variable SEO_SITE. The report is in the job summary of each run.
+# Needs: repository variable SEO_SITE; optional secret INDEXNOW_KEY (the check then also checks the key file).
+# The report is in the job summary of each run.
 # Calendar task: weekly-audit.
 name: seo-weekly
 
@@ -17,3 +18,6 @@ jobs:
     with:
       site: ${{ vars.SEO_SITE }}
       mode: weekly
+      # indexnow: off      # with the secret, the check also checks https://SITE/KEY.txt; off skips that
+    secrets:
+      INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}

@@ -130,7 +130,7 @@ c["tasks"].append({"id": "s-soon", "kind": "every", "every_days": 7, "next": "20
 before = copy(c)
 b = cal_mod.buckets(c, D(2026, 12, 8), within=7)
 ids = {k: [x["id"] for x in v] for k, v in b.items()}
-check("buckets keys", set(b) == {"overdue", "today", "soon", "later", "event", "done"})
+check("buckets keys", set(b) == {"overdue", "today", "soon", "later", "event", "done", "skipped"})
 check("buckets overdue", ids["overdue"] == ["a-once"])
 check("buckets overdue days", b["overdue"][0]["days"] == -7 and b["overdue"][0]["due_on"] == "2026-12-01")
 check("buckets today", ids["today"] == ["w-7"])
@@ -154,6 +154,38 @@ check("mark_done once goes to done", "a-once" in [x["id"] for x in cal_mod.bucke
 cal_mod.mark_done(c2, "e-deploy", D(2026, 12, 3))
 check("mark_done event", [x for x in c2["tasks"] if x["id"] == "e-deploy"][0]["last"] == "2026-12-03")
 check("mark_done unknown", raises(KeyError, cal_mod.mark_done, c2, "nope", D(2026, 12, 3)))
+
+# skip_task and unskip_task: a task that does not apply to this site
+c5 = copy(site)
+cal_mod.skip_task(c5, "a-once", D(2026, 12, 2), "  no product catalog  ")
+a5 = [x for x in c5["tasks"] if x["id"] == "a-once"][0]
+check("skip records date and reason", a5["skipped"] == {"on": "2026-12-02", "reason": "no product catalog"})
+b5 = cal_mod.buckets(c5, D(2026, 12, 8), within=7)
+check("skipped once leaves overdue", "a-once" not in [x["id"] for x in b5["overdue"]])
+check("skipped once in its bucket", [x["id"] for x in b5["skipped"]] == ["a-once"])
+cal_mod.skip_task(c5, "w-7", D(2026, 12, 2), "the host checks it")
+cal_mod.skip_task(c5, "e-deploy", D(2026, 12, 2), "no deploys")
+b5 = cal_mod.buckets(c5, D(2026, 12, 8), within=7)
+check("skipped every and event", [x["id"] for x in b5["skipped"]] == ["a-once", "e-deploy", "w-7"]
+      and b5["today"] == [] and b5["event"] == [])
+check("skipped validates", cal_mod.validate(c5) == [])
+check("skipped not in md", "a-once" not in cal_mod.to_markdown(b5, "x.ru", D(2026, 12, 8)))
+check("skip needs a reason", raises(ValueError, cal_mod.skip_task, copy(site), "a-once", D(2026, 12, 2), " "))
+check("skip needs a reason, None", raises(ValueError, cal_mod.skip_task, copy(site), "a-once", D(2026, 12, 2), None))
+check("skip unknown", raises(KeyError, cal_mod.skip_task, copy(site), "nope", D(2026, 12, 2), "x"))
+check("unskip", cal_mod.unskip_task(c5, "a-once") is True and "skipped" not in a5)
+check("unskip twice", cal_mod.unskip_task(c5, "a-once") is False)
+check("unskip unknown", raises(KeyError, cal_mod.unskip_task, c5, "nope"))
+cal_mod.mark_done(c5, "w-7", D(2026, 12, 10))
+check("done clears skip", "skipped" not in [x for x in c5["tasks"] if x["id"] == "w-7"][0])
+t = copy(site); t["tasks"][0]["skipped"] = {"on": "2026-12-02", "reason": ""}
+check("validate skipped without reason", len(cal_mod.validate(t)) == 1)
+t = copy(site); t["tasks"][0]["skipped"] = {"on": "2026-12-32", "reason": "x"}
+check("validate skipped bad date", len(cal_mod.validate(t)) == 1)
+t = copy(site); t["tasks"][0]["skipped"] = "yes"
+check("validate skipped not an object", len(cal_mod.validate(t)) == 1)
+t = copy(TEMPLATE); t["tasks"][0]["skipped"] = {"on": "2026-12-02", "reason": "x"}
+check("validate skipped in a template", len(cal_mod.validate(t, template=True)) == 1)
 
 # slug and track_page
 check("slug path", cal_mod.slug("https://x.ru/Kak-Vybrat/") == "kak-vybrat")
@@ -240,6 +272,43 @@ with tempfile.TemporaryDirectory() as tmp:
     check("cli validate template", code == 0)
     code, text = run_cli("validate", "--calendar", tp)
     check("cli validate template as site fails", code == 2)
+    code, text = run_cli("validate", "--template", tp)
+    check("cli validate --template FILE", code == 0 and "ok: 5 tasks" in text)
+    code, text = run_cli("validate", "--calendar", tp, "--template", tp)
+    check("cli validate --calendar F --template F", code == 0 and "ok: 5 tasks" in text)
+    code, text = run_cli("validate", "--calendar", tp, "--as-template")
+    check("cli validate --as-template", code == 0)
+    code, text = run_cli("validate", "--calendar", out, "--template", tp)
+    check("cli validate two different files", code == 2 and "one file" in text)
+    code, text = run_cli("validate", "--template", out)
+    check("cli validate site calendar as template", code == 0)
+    code, text = run_cli("skip", "a-once", "--calendar", out, "--on", "2026-12-02", "--reason", "no catalog")
+    saved = cal_mod.load(out)
+    a = [x for x in saved["tasks"] if x["id"] == "a-once"][0]
+    check("cli skip saves", code == 0 and a.get("skipped") == {"on": "2026-12-02", "reason": "no catalog"})
+    code, text = run_cli("due", "--calendar", out, "--date", "2026-12-08", "--format", "json")
+    try:
+        j = json.loads(text)
+        ok = (code == 0 and "a-once" not in [x["id"] for x in j["buckets"]["overdue"]]
+              and [x["id"] for x in j["buckets"]["skipped"]] == ["a-once"])
+    except Exception:
+        ok = False
+    check("cli due json skipped", ok)
+    code, text = run_cli("due", "--calendar", out, "--date", "2026-12-08", "--format", "text")
+    check("cli due text skipped", code == 0 and "Skipped (1)" in text and "no catalog" in text)
+    code, text = run_cli("skip", "b-once-14", "--calendar", out)
+    check("cli skip without reason", code == 2 and "reason" in text)
+    code, text = run_cli("skip", "nope", "--calendar", out, "--reason", "x")
+    check("cli skip unknown", code == 2)
+    code, text = run_cli("validate", "--calendar", out)
+    check("cli validate with a skip", code == 0)
+    code, text = run_cli("skip", "a-once", "--calendar", out, "--undo")
+    saved = cal_mod.load(out)
+    check("cli skip --undo", code == 0 and "skipped" not in [x for x in saved["tasks"] if x["id"] == "a-once"][0])
+    code, text = run_cli("skip", "a-once", "--calendar", out, "--undo")
+    check("cli skip --undo twice", code == 0 and "not skipped" in text)
+    code, text = run_cli("-h")
+    check("cli help lists skip", "skip" in text)
     code, text = run_cli("due", "--calendar", os.path.join(tmp, "missing.json"))
     check("cli due missing file", code == 2)
 

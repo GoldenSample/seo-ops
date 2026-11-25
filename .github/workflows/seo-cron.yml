@@ -4,7 +4,9 @@
 #   weekly   seo_check.py with 12 pages, report in the job summary
 #   monthly  one issue with the human calendar tasks due in the next 31 days (needs issues: write)
 #   deploy   seo_check.py with 8 pages, then IndexNow for the last 3 hours
-# IndexNow runs only when the INDEXNOW_KEY secret is passed. The job fails when seo_check.py finds a FAIL.
+# With the INDEXNOW_KEY secret, every check mode also checks the key file https://SITE/KEY.txt, and daily and deploy
+# send changed URLs to IndexNow. Input indexnow: submit (default) does both; check only checks the key file (when
+# another tool sends); off ignores the secret. The job fails when seo_check.py finds a FAIL.
 name: seo-cron
 
 on:
@@ -34,6 +36,10 @@ on:
         description: "fail or warn: which seo_check.py result fails the job"
         type: string
         default: "fail"
+      indexnow:
+        description: "With the INDEXNOW_KEY secret: submit (check the key file, send changed URLs), check (key file only) or off"
+        type: string
+        default: "submit"
       tools_ref:
         description: "seo-ops tag or branch to run; keep it equal to the @ref you call this workflow with"
         type: string
@@ -53,12 +59,14 @@ jobs:
       SINCE_IN: ${{ inputs.since_hours }}
       CALENDAR: ${{ inputs.calendar }}
       FAIL_ON: ${{ inputs.fail_on }}
+      INDEXNOW_MODE: ${{ inputs.indexnow }}
     steps:
       - name: Validate inputs
         run: |
           case "$MODE" in daily|weekly|monthly|deploy) ;; *) echo "::error::mode must be daily, weekly, monthly or deploy, got '$MODE'"; exit 1;; esac
           if [ -z "$SITE" ]; then echo "::error::site is empty: set the repository variable SEO_SITE (Settings, Secrets and variables, Actions, Variables)"; exit 1; fi
           case "$FAIL_ON" in fail|warn) ;; *) echo "::error::fail_on must be fail or warn"; exit 1;; esac
+          case "$INDEXNOW_MODE" in submit|check|off) ;; *) echo "::error::indexnow must be submit, check or off, got '$INDEXNOW_MODE'"; exit 1;; esac
           pages="$PAGES_IN"; since="$SINCE_IN"
           if [ "$pages" = "0" ]; then case "$MODE" in daily) pages=3;; weekly) pages=12;; *) pages=8;; esac; fi
           if [ "$since" = "0" ]; then case "$MODE" in deploy) since=3;; *) since=26;; esac; fi
@@ -84,7 +92,10 @@ jobs:
       - name: Site check
         id: check
         if: inputs.mode != 'monthly'
+        env:
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: |
+          if [ "$INDEXNOW_MODE" = "off" ]; then unset INDEXNOW_KEY; fi
           set +e
           python3 .seo-ops/scripts/seo_check.py "$SITE" --pages "$PAGES" --md seo-check.md --json seo-check.json --fail-on "$FAIL_ON"
           code=$?
@@ -93,7 +104,7 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: IndexNow
-        if: (inputs.mode == 'daily' || inputs.mode == 'deploy') && steps.check.outputs.code != '2'
+        if: (inputs.mode == 'daily' || inputs.mode == 'deploy') && inputs.indexnow == 'submit' && steps.check.outputs.code != '2'
         env:
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: |

@@ -4,15 +4,18 @@ seo_calendar.py: the SEO calendar of one site. Python 3.9+, standard library onl
 
 The template (templates/calendar.json) lists what to do once at launch, what to repeat and on which
 events. `init` turns it into the site's own calendar with real dates; `due` shows what is due;
-`done` records a finished task (a recurring task moves to its next date); `track` adds day-7, day-21 and
-day-90 measurements for a new or changed page.
+`done` records a finished task (a recurring task moves to its next date); `skip` records that a task does
+not apply to this site, with the reason; `track` adds day-7, day-21 and day-90 measurements for a new or
+changed page.
 
 Usage
   python seo_calendar.py init --site example.com --launch 2026-12-01 [--out seo-calendar.json]
   python seo_calendar.py due [--within 7] [--who human|cron|all] [--format text|json|md] [--strict]
   python seo_calendar.py done launch-robots [--on 2026-12-01]
+  python seo_calendar.py skip launch-product-feeds --reason "no product catalog" [--on 2026-12-01] [--undo]
   python seo_calendar.py track https://example.com/new-page/ [--on 2026-12-03]
-  python seo_calendar.py validate [--calendar FILE] [--template]
+  python seo_calendar.py validate [--calendar FILE]          a site calendar
+  python seo_calendar.py validate --template [FILE]          a template (FILE, else --calendar)
 
 Exit codes: 0 ok; 1 with --strict when something is overdue; 2 bad input.
 Source: https://github.com/GoldenSample/seo-ops (MIT). Written by a local model from a spec and
@@ -28,7 +31,7 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 def to_date(s) -> datetime.date:
     if not isinstance(s, str) or not re.match(r'^\d{4}-\d{2}-\d{2}$', s):
@@ -111,6 +114,16 @@ def validate(cal, template=False) -> list:
                     try: to_date(val)
                     except ValueError: errors.append(f"Task {tid or i} has invalid {field} date")
 
+        sk = task.get("skipped")
+        if sk is not None and template:
+            errors.append(f"Task {tid or i} is skipped in a template: skip tasks in the site calendar")
+        elif sk is not None:
+            if not isinstance(sk, dict) or not isinstance(sk.get("reason"), str) or not sk["reason"].strip():
+                errors.append(f"Task {tid or i} is skipped without a reason")
+            else:
+                try: to_date(sk.get("on"))
+                except ValueError: errors.append(f"Task {tid or i} has invalid skipped date")
+
     if not template:
         site = cal.get("site")
         if not site or not isinstance(site, str):
@@ -150,7 +163,7 @@ def due_date(task) -> datetime.date or None:
     return None
 
 def buckets(cal, today, within=7, who="all") -> dict:
-    b = {"overdue": [], "today": [], "soon": [], "later": [], "event": [], "done": []}
+    b = {"overdue": [], "today": [], "soon": [], "later": [], "event": [], "done": [], "skipped": []}
     for task in cal.get("tasks", []):
         if who != "all" and task.get("who") != who:
             continue
@@ -160,7 +173,9 @@ def buckets(cal, today, within=7, who="all") -> dict:
         t_copy["due_on"] = due.isoformat() if due else None
         t_copy["days"] = (due - today).days if due else None
         
-        if task["kind"] == "once" and task.get("done"):
+        if task.get("skipped"):
+            b["skipped"].append(t_copy)
+        elif task["kind"] == "once" and task.get("done"):
             b["done"].append(t_copy)
         elif task["kind"] == "event":
             b["event"].append(t_copy)
@@ -177,7 +192,7 @@ def buckets(cal, today, within=7, who="all") -> dict:
 
     for k in ("overdue", "today", "soon", "later"):
         b[k].sort(key=lambda x: (x["due_on"], x["id"]))
-    for k in ("event", "done"):
+    for k in ("event", "done", "skipped"):
         b[k].sort(key=lambda x: x["id"])
     return b
 
@@ -185,7 +200,7 @@ def mark_done(cal, task_id, on) -> dict:
     task = next((t for t in cal["tasks"] if t["id"] == task_id), None)
     if not task:
         raise KeyError(f"Task {task_id} not found")
-    
+    task.pop("skipped", None)  # done after skip: the task applies after all
     if task["kind"] == "once":
         task["done"] = on.isoformat()
     elif task["kind"] == "every":
@@ -194,6 +209,25 @@ def mark_done(cal, task_id, on) -> dict:
     elif task["kind"] == "event":
         task["last"] = on.isoformat()
     return cal
+
+def skip_task(cal, task_id, on, reason) -> dict:
+    """Record that a task does not apply to this site. `done` or `unskip_task` brings it back."""
+    task = next((t for t in cal["tasks"] if t["id"] == task_id), None)
+    if not task:
+        raise KeyError(f"Task {task_id} not found")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError('skip needs a reason: --reason "..."')
+    task["skipped"] = {"on": on.isoformat(), "reason": reason}
+    return cal
+
+
+def unskip_task(cal, task_id) -> bool:
+    task = next((t for t in cal["tasks"] if t["id"] == task_id), None)
+    if not task:
+        raise KeyError(f"Task {task_id} not found")
+    return task.pop("skipped", None) is not None
+
 
 def slug(url) -> str:
     path = urlsplit(url).path
@@ -274,14 +308,23 @@ def main(argv=None) -> int:
     p_done.add_argument("--calendar")
     p_done.add_argument("--on")
 
+    p_skip = subparsers.add_parser("skip", help="record that a task does not apply to this site, with the reason")
+    p_skip.add_argument("id")
+    p_skip.add_argument("--reason", help="why the task does not apply (required)")
+    p_skip.add_argument("--calendar")
+    p_skip.add_argument("--on")
+    p_skip.add_argument("--undo", action="store_true", help="bring a skipped task back")
+
     p_track = subparsers.add_parser("track", help="add day 7, 21 and 90 checks for a page")
     p_track.add_argument("url")
     p_track.add_argument("--calendar")
     p_track.add_argument("--on")
 
-    p_val = subparsers.add_parser("validate", help="check a calendar or template")
-    p_val.add_argument("--calendar")
-    p_val.add_argument("--template", action="store_true")
+    p_val = subparsers.add_parser("validate", help="check a site calendar, or a template with --template")
+    p_val.add_argument("--calendar", help="site calendar (default seo-calendar.json)")
+    p_val.add_argument("--as-template", action="store_true", help="check the --calendar file as a template")
+    p_val.add_argument("--template", nargs="?", const=True, default=None, metavar="FILE",
+                       help="check FILE as a template, like init --template FILE; without FILE, the --calendar file")
 
     args = parser.parse_args(argv)
     
@@ -315,10 +358,13 @@ def main(argv=None) -> int:
             today = to_date(args.date) if args.date else datetime.date.today()
             b = buckets(cal, today, args.within, args.who)
             if args.format == "text":
-                for k in ("overdue", "today", "soon", "later", "event", "done"):
+                for k in ("overdue", "today", "soon", "later", "event", "done", "skipped"):
                     print(f"{k.capitalize()} ({len(b[k])})")
                     for t in b[k]:
-                        print(f"  {t['id']}  {t.get('due_on') or '-'}  {t['who']}  {t['what']}")
+                        if k == "skipped":
+                            print(f"  {t['id']}  {t['skipped'].get('on')}  {t['who']}  {t['skipped'].get('reason')}")
+                        else:
+                            print(f"  {t['id']}  {t.get('due_on') or '-'}  {t['who']}  {t['what']}")
             elif args.format == "json":
                 print(json.dumps({"site": cal.get("site"), "date": today.isoformat(), "within": args.within, "buckets": b}, ensure_ascii=False, indent=2))
             elif args.format == "md":
@@ -341,6 +387,26 @@ def main(argv=None) -> int:
                 print(f"Error: {e}")
                 return 2
 
+        elif args.cmd == "skip":
+            cal_path = args.calendar or cal_def
+            cal = load(cal_path)
+            try:
+                if args.undo:
+                    if not unskip_task(cal, args.id):
+                        print(f"{args.id} is not skipped")
+                        return 0
+                    save(cal_path, cal)
+                    print(f"{args.id} is back in the calendar")
+                    return 0
+                on_date = to_date(args.on) if args.on else datetime.date.today()
+                skip_task(cal, args.id, on_date, args.reason)
+            except KeyError as e:
+                print(f"Error: {e}")
+                return 2
+            save(cal_path, cal)
+            print(f"skipped {args.id} on {on_date}: {args.reason.strip()}")
+            return 0
+
         elif args.cmd == "track":
             cal_path = args.calendar or cal_def
             cal = load(cal_path)
@@ -354,9 +420,15 @@ def main(argv=None) -> int:
             return 0
 
         elif args.cmd == "validate":
+            as_template = args.as_template or args.template is not None
             cal_path = args.calendar or cal_def
+            if isinstance(args.template, str):
+                if args.calendar and os.path.abspath(args.calendar) != os.path.abspath(args.template):
+                    print("Error: give one file: --template FILE, or --calendar FILE --as-template")
+                    return 2
+                cal_path = args.template
             cal = load(cal_path)
-            errs = validate(cal, template=args.template)
+            errs = validate(cal, template=as_template)
             if errs:
                 for e in errs: print(e)
                 return 2

@@ -19,4 +19,4 @@ Use GitHub private vulnerability reporting on this repository (Security, Report 
 
 ## Supported versions
 
-The latest `v1.x` tag. The moving `v1` tag always points to it.
+The newest 1.x release gets the fixes. The moving `v1` tag, which the cron callers use, points to the newest 1.x release that changed the cron workflow or the scripts. A release that changes only documentation, CI or the plugin manifests leaves `v1` where it was; CHANGELOG.md says where `v1` points after each release.

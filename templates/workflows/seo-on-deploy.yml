@@ -32,5 +32,6 @@ jobs:
     with:
       site: ${{ vars.SEO_SITE }}
       mode: deploy
+      # indexnow: check    # submit (default): check the key file and send changed URLs; check: key file only; off: ignore the secret
     secrets:
       INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}

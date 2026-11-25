@@ -1,6 +1,6 @@
 ---
 name: seo-calendar
-description: "The SEO calendar of one site and its cron jobs: templates/calendar.json (one-time launch tasks, recurring tasks every 1 to 365 days, event tasks), scripts/seo_calendar.py (init, due, done, track, validate) and scheduled GitHub Actions workflows: daily health check and IndexNow, weekly external audit, monthly issue with the human tasks for the next 31 days, check after every deploy. Use when setting up recurring SEO for a site, asking what is due this week, marking SEO tasks done, adding a task, or wiring SEO checks into CI, cron or GitHub Actions. RU triggers: SEO-календарь, регулярные задачи SEO, что сделать на этой неделе, расписание SEO, крон, GitHub Actions, автопроверка сайта, напоминания SEO, ежедневная проверка сайта."
+description: "The SEO calendar of one site and its cron jobs: templates/calendar.json (one-time launch tasks, recurring tasks every 1 to 365 days, event tasks), scripts/seo_calendar.py (init, due, done, skip, track, validate) and scheduled GitHub Actions workflows: daily health check and IndexNow, weekly external audit, monthly issue with the human tasks for the next 31 days, check after every deploy. Use when setting up recurring SEO for a site, asking what is due this week, marking SEO tasks done or not applicable, adding a task, or wiring SEO checks into CI, cron or GitHub Actions. RU triggers: SEO-календарь, регулярные задачи SEO, что сделать на этой неделе, расписание SEO, крон, GitHub Actions, автопроверка сайта, напоминания SEO, ежедневная проверка сайта."
 license: MIT
 ---
 
@@ -31,7 +31,7 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
    - `seo-monthly.yml`: opens one issue with the human tasks due in the next 31 days.
    - `seo-on-deploy.yml`: check and IndexNow after a deploy. Start it from your deploy workflow, from a deploy script with a `repository_dispatch` event of type `seo-deploy`, or by hand; the file header shows all three.
    They call the reusable workflow `GoldenSample/seo-ops/.github/workflows/seo-cron.yml@v1`.
-4. In the repo settings: variable `SEO_SITE` = the canonical host (e.g. `example.com`); secret `INDEXNOW_KEY` if you use IndexNow (seo-yandex). Without the secret the IndexNow step is skipped.
+4. In the repo settings: variable `SEO_SITE` = the canonical host (e.g. `example.com`); secret `INDEXNOW_KEY` if you use IndexNow (seo-yandex). With the secret, every check also checks the key file `https://SITE/KEY.txt`, and the daily and deploy runs send changed URLs. If another tool already sends IndexNow, add `indexnow: check` under `with:` (key file only); `indexnow: off` ignores the secret. Without the secret both are skipped.
 5. `launch-uptime`: an uptime monitor with an alert after two failures in a row. The daily job sees a dead site once a day; an uptime service sees it in minutes.
 6. Watch the first scheduled runs in the Actions tab: they must be green. A red run means a FAIL on the site or a site that did not answer; the job summary says which.
 
@@ -59,14 +59,16 @@ python scripts/seo_calendar.py due                    # overdue, today, next 7 d
 python scripts/seo_calendar.py due --who human --format md
 python scripts/seo_calendar.py due --strict           # exit 1 when something is overdue
 python scripts/seo_calendar.py done weekly-index-snapshot --on 2026-12-08
+python scripts/seo_calendar.py skip launch-product-feeds --reason "no product catalog"
+python scripts/seo_calendar.py skip launch-product-feeds --undo
 ```
 
-`done` on an `every` task moves its next date by `every_days` from the day it was done. Commit `seo-calendar.json` after each change: the file is the history.
+`done` on an `every` task moves its next date by `every_days` from the day it was done. `skip` takes a task out of this site's calendar, with the reason: a one-time task that does not apply (no product catalog, no office), or a recurring task another tool already does. `due` lists skipped tasks apart with the reason, and the monthly issue leaves them out. `done` or `skip --undo` brings a skipped task back. `validate` refuses a skip without a reason. Commit `seo-calendar.json` after each change: the file is the history.
 
 ## Change the template
 
-- Add a task: a new object with a unique `id` (lower case, digits, `-`), `kind`, `what`, `who` and the fields of its kind. Run `validate --template` on the template or `validate` on a site calendar.
-- Change a frequency: edit `every_days`. Remove a task you do not need instead of ignoring it.
+- Add a task: a new object with a unique `id` (lower case, digits, `-`), `kind`, `what`, `who` and the fields of its kind. Run `validate --template templates/calendar.json` on the template or `validate` on a site calendar.
+- Change a frequency: edit `every_days`. A task that does not apply to one site: `skip` it in that site's calendar with the reason, not in the template. Remove a task from the template only when no site needs it.
 - Keep `source` and `checked` honest: an empty source means the task is practice, not a rule.
 
 ## GitHub Actions facts (checked 2026-11-25)
