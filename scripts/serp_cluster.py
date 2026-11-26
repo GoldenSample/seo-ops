@@ -45,7 +45,7 @@ import re
 import sys
 from urllib.parse import unquote, urlsplit
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 ALIASES = {
     "phrase": ["phrase", "keyword", "keywords", "query", "queries", "key", "search query", "фраза", "фразы",
@@ -354,7 +354,7 @@ def first_per_position(lst):
 # ---------------------------------------------------------------- site pages
 
 def host_of(key):
-    return re.split(r"[/?]", key, 1)[0]
+    return re.split(r"[/?]", key, maxsplit=1)[0]
 
 
 def site_hits(positions, site):

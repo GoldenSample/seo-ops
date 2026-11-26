@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1 (2026-11-26)
+
+- `serp_cluster.py` passed `maxsplit` to `re.split` by position. Python 3.13 and later warn about that, and CI runs the tests with warnings as errors, so on the runner's own python3 (3.14 on ubuntu-latest) the cluster tests failed and CI of 1.1.0 was red. It now passes `maxsplit=1` by name; the clusters are the same.
+- The other scripts, the skills, the calendar and the cron workflows work as in 1.1.0; only the version strings changed.
+- `serp_cluster.py` changed, so `v1` moves to 1.1.1, not to 1.1.0. The 1.1.0 change for callers of `@v1` comes with it: the weekly run crawls up to 200 URLs and goes red on a crawl FAIL; `crawl_pages: 0` keeps the 1.0 behaviour.
+
 ## 1.1.0 (2026-11-26)
 
 - New scripts, Python 3.9+ standard library only:

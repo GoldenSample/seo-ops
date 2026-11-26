@@ -56,7 +56,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seo_check as sc  # noqa: E402  (same scripts folder)
 import seo_crawl as cr  # noqa: E402
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 UA = "seo-ops-index/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 YANDEX = "https://api.webmaster.yandex.net/v4"
 GSC_INSPECT = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"

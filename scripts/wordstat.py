@@ -54,7 +54,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seo_check as sc  # noqa: E402  (same scripts folder)
 import seo_index as si  # noqa: E402
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 UA = "seo-ops-wordstat/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 API = "https://searchapi.api.cloud.yandex.net"
 API_HOST = "searchapi.api.cloud.yandex.net"

@@ -36,7 +36,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 UA = "seo-ops-gaps/1.0 (+https://github.com/GoldenSample/seo-ops)"
 
 ALIASES = {

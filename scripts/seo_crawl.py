@@ -70,7 +70,7 @@ import urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seo_check as sc  # noqa: E402  (same scripts folder)
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 UA = "seo-ops-crawl/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 AGENT = "seo-ops-crawl"
 HTML_ACCEPT = "text/html,application/xhtml+xml"
