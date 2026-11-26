@@ -24,12 +24,12 @@ The semantic core is the list of phrases the site should rank for, each with its
 | 8. Pages | the Site page column, the new-page list, split clusters, shared pages | `arsenkin_relevant_urls` | every cluster has one target page or a dated "not now" |
 | 9. Record | demand notes in the decision log; the core file in the site repo | - | the core can be rebuilt from the files and the log |
 
-Region 213 is Moscow; `python scripts/wordstat.py tree` lists every region ID and costs nothing. Use the same region in steps 2, 4 and 6: counts and results change from region to region (Practice).
+Region 213 is Moscow; `python scripts/wordstat.py tree` lists every region ID and costs nothing (it is still a request with your key). Use the same region in steps 2, 4 and 6: counts and results change from region to region (Practice).
 
 ## Counts from the official Wordstat API
 
 - `wordstat.py` calls Yandex Search API v2: `top` returns how often a phrase was searched in the last 30 days, up to 2000 queries that contain it and similar queries; `dynamics` gives searches per month, week or day for seasonality (Official: https://aistudio.yandex.ru/ru/docs/search-api/api-ref/Wordstat/getTop , checked 2026-11-26).
-- A key of your own, from the environment only: `YANDEX_CLOUD_API_KEY` (service account with the role `search-api.webSearch.user`) or `YANDEX_CLOUD_IAM_TOKEN`, and `YANDEX_CLOUD_FOLDER_ID`. The key never reaches the output or the cache.
+- A key of your own, only from the keys file (seo-ops, Keys file), never from the environment: `YANDEX_CLOUD_API_KEY` (service account with the role `search-api.webSearch.user`) or `YANDEX_CLOUD_IAM_TOKEN`, and `YANDEX_CLOUD_FOLDER_ID` (or `--folder-id`). Add `--keys '${user_config.keys_file}'` to every `wordstat.py` command, `tree` included (free, but still a request with the key); only `--dry-run` and answers already in the cache work without it. The key never reaches the output or the cache.
 - Price with VAT: 20 ₽ per 1000 requests for `top` and `dynamics`, 50 ₽ for `regions`, the regions tree free; quota 100 requests an hour (Official: https://aistudio.yandex.ru/ru/docs/search-api/pricing , https://aistudio.yandex.ru/ru/docs/search-api/concepts/limits , checked 2026-11-26). `--dry-run` prints the requests, price and time first; answers are cached, so a broken run goes on where it stopped.
 - Operators: the Wordstat site documents `-word`, `!form`, `+stopword`, `"quotes"`, `[order]` and `(a|b)` (Official: https://yandex.ru/support2/wordstat/ru/content/operators , checked 2026-11-26). The API pages do not mention them and the pack has not tried them through the API: compare one phrase on the site and through the API before you rely on them.
 - A count is searches in Yandex, not visits, and Google is not in it. For Google, read the queries where the site already appears in Search Console (seo-query-gaps).
@@ -75,7 +75,7 @@ Getting the results:
 - Connect: `claude mcp add --transport http arsenkin https://mcp.arsenkin.ru/mcp --header "Authorization: Bearer <token>"`, or without the header and then `/mcp`, Authenticate. Keep the token out of the site repo: do not add the server with `--scope project`, which writes `.mcp.json` into the repo.
 - Cost: no separate fee for MCP, paid tools spend the account's limits. The API and MCP are open on the Standard and Corporate plans, 2 490 ₽ and 7 990 ₽ a month; Standard has 85 000 limits; a count costs 1 limit per phrase, clustering and index checks 1.5 limits per phrase or URL (vendor page https://arsenkin.ru/tariffs/ , checked 2026-11-26).
 - Pace: 30 requests a minute, 5 tasks at once, 50 in the queue. `arsenkin_limits` shows what is left, each task reports its cost. The "Yandex XML" source works only at night Moscow time, so such tasks wait during the day.
-- Index checks: `arsenkin_indexation`, or the pack's own `seo_index.py` with your Webmaster and Search Console keys (seo-launch).
+- Index checks: `arsenkin_indexation`, or the pack's own `seo_index.py` with your Webmaster and Search Console keys in the keys file (seo-launch).
 
 ## One-time: launch-semantic-core
 

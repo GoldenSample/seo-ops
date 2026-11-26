@@ -45,7 +45,7 @@ import re
 import sys
 from urllib.parse import unquote, urlsplit
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 
 ALIASES = {
     "phrase": ["phrase", "keyword", "keywords", "query", "queries", "key", "search query", "фраза", "фразы",

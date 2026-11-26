@@ -250,8 +250,28 @@ code, text = run(["--site", "x.test", "--key", "bad_key!"])
 check("cli bad key", code == 2)
 os.environ["INDEXNOW_KEY"] = KEY
 code, text = run(["--site", "x.test"])
-check("cli key from env", code == 0 and "dry run" in text)
+check("cli key in the environment is not read", code == 2 and "--keys FILE" in text)
 os.environ.pop("INDEXNOW_KEY", None)
+kdir = tempfile.mkdtemp(prefix="indexnow_keys_")
+kf = os.path.join(kdir, "keys.env")
+fd = os.open(kf, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as fh:
+    fh.write("# test keys\nINDEXNOW_KEY=%s\n" % KEY)
+code, text = run(["--site", "x.test", "--keys", kf])
+check("cli key from the keys file", code == 0 and "dry run" in text)
+code, text = run(["--site", "x.test", "--keys", "${user_config.keys_file}"])
+check("cli unfilled plugin option: no key", code == 2 and "no IndexNow key" in text)
+code, text = run(["--site", "x.test", "--keys", os.path.join(kdir, "missing.env")])
+check("cli missing keys file", code == 2 and "keys file not found" in text)
+p = Post([200])
+other = "other-key-0001"
+code, text = run(["--site", "x.test", "--key", other, "--keys", kf, "--submit"], post=p,
+                 fetch=lambda u: (200, SITE_SM) if u == "https://x.test/sitemap.xml"
+                 else (200, other) if u == "https://x.test/%s.txt" % other else (404, ""))
+check("cli --key wins over the keys file", code == 0 and len(p.calls) == 1 and p.calls[0]["key"] == other)
+for name in os.listdir(kdir):
+    os.remove(os.path.join(kdir, name))
+os.rmdir(kdir)
 
 p = Post([200])
 code, text = run(["--site", "x.test", "--key", KEY], post=p)

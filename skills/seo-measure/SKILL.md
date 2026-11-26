@@ -24,7 +24,7 @@ One line per change: date, what changed (URLs or template), other changes at the
 
 | Id | Every | What |
 |---|---|---|
-| weekly-index-snapshot | 7 days | Search Console Pages and Performance; Yandex Webmaster Diagnostics and Pages in search; compare with last week. With the owner's keys, `python scripts/seo_index.py example.com` lists the published pages missing from each index, with the reason (seo-launch, Index coverage) |
+| weekly-index-snapshot | 7 days | Search Console Pages and Performance; Yandex Webmaster Diagnostics and Pages in search; compare with last week. With the owner's keys file, `python scripts/seo_index.py example.com --keys '${user_config.keys_file}'` lists the published pages missing from each index, with the reason (seo-launch, Index coverage) |
 | weekly-analytics | 7 days | organic visits, goals and orders; AI referrals (chatgpt.com, perplexity.ai, claude.ai, gemini.google.com, copilot.microsoft.com and others) as their own source group |
 | monthly-ctr-pass | 30 days | pages with impressions but few clicks over 28 to 90 days: rewrite title and description on half, keep comparable control pages unchanged, review in 4 weeks |
 | monthly-orders | 30 days | organic orders and revenue from the e-commerce report, reconciled with real orders and calls by order number or ClientID |
@@ -43,7 +43,7 @@ One line per change: date, what changed (URLs or template), other changes at the
 - `event-traffic-drop`:
   1. Check https://status.search.google.com/ and the Yandex Webmaster blog (https://webmaster.yandex.ru/blog/) for updates and outages.
   2. Read dashboard messages: manual actions, security, critical errors.
-  3. Run `python scripts/seo_check.py example.com --pages 20` and `python scripts/seo_crawl.py example.com --json crawl-now.json`, with `--compare <an earlier crawl JSON>` when you kept one: new errors, lost pages and changed titles show in the crawl-diff line. With the owner's keys, `python scripts/seo_index.py example.com` lists the pages missing from the index, with the reason. Read the server logs for 5xx, 403 and 429 sent to robots.
+  3. Run `python scripts/seo_check.py example.com --pages 20` and `python scripts/seo_crawl.py example.com --json crawl-now.json`, with `--compare <an earlier crawl JSON>` when you kept one: new errors, lost pages and changed titles show in the crawl-diff line. With the owner's keys file, `python scripts/seo_index.py example.com --keys '${user_config.keys_file}'` lists the pages missing from the index, with the reason. Read the server logs for 5xx, 403 and 429 sent to robots.
   4. List the deploys and log lines of the last 14 days.
   5. Compare equal windows before and after; find which pages and queries fell.
   6. Roll back one change at a time and write each step in the log.

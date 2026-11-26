@@ -51,7 +51,7 @@ The other recurring tasks (weekly, monthly, quarterly, yearly) are `human` and a
 
 ## Events
 
-- `event-deploy`: run `seo-on-deploy.yml` after each deploy. In a deploy workflow add a last job with `uses: ./.github/workflows/seo-on-deploy.yml` and `secrets: inherit`; a deploy script on a server sends `{"event_type":"seo-deploy"}` to the repository dispatches API.
+- `event-deploy`: run `seo-on-deploy.yml` after each deploy. In a deploy workflow add a last job with `uses: ./.github/workflows/seo-on-deploy.yml` and `secrets: inherit`; a deploy script on a server runs `gh workflow run seo-on-deploy.yml --repo OWNER/REPO` or sends `{"event_type":"seo-deploy"}` to the repository dispatches API.
 - `event-new-page`: `python scripts/seo_calendar.py track https://example.com/new-page/ --on 2026-12-03` adds measurement tasks at day 7, 21 and 90 (seo-measure).
 
 ## Daily use

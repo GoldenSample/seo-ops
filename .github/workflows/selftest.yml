@@ -54,6 +54,8 @@ jobs:
         run: python3 -W error tests/test_gaps.py scripts/gsc_gaps.py
       - name: IndexNow
         run: python3 -W error tests/test_indexnow.py scripts/indexnow.py
+      - name: keys file
+        run: python3 -W error tests/test_keys.py scripts/seo_keys.py
       - name: calendar template
         run: python3 scripts/seo_calendar.py validate --calendar templates/calendar.json --template
       - name: plugin manifests are valid JSON

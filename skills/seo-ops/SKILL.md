@@ -47,7 +47,16 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 4. **Numbers from a source.** No conclusion from single-digit numbers; compare equal windows; mark dashboard outages and core updates as excluded windows.
 5. **Facts go stale.** Every fact here has a checked date. Re-read the sources every quarter (`quarterly-rules-recheck`).
 6. **No tricks.** No bought links, no keywords added to a business name, no ratings copied from other platforms, no mass pages without value. Google's spam policies and Business Profile guidelines forbid them, and Yandex counts mass pages without value as low-value content.
-7. **No keys by default.** `seo_check.py`, `seo_crawl.py`, `seo_calendar.py`, `gsc_gaps.py` and `serp_cluster.py` need no key; `indexnow.py` uses the site's IndexNow key, which the protocol makes public. `seo_index.py` and `wordstat.py` use the owner's own keys from the environment or CI secrets, never print them and send them only to the official API hosts. Yandex Cloud bills Wordstat requests to the owner's account: run `wordstat.py ... --dry-run` first, it shows the requests, the price and the time.
+7. **No keys by default, and keys only from the keys file.** `seo_check.py`, `seo_crawl.py`, `seo_calendar.py`, `gsc_gaps.py` and `serp_cluster.py` need no key; `indexnow.py` uses the site's IndexNow key, which the protocol makes public. `seo_index.py` and `wordstat.py` use the owner's own keys. A script reads a key only from `--key` or from the keys file named with `--keys` (Keys file below; in the cron, a file the workflow writes from the CI secrets), never from the environment; it never prints a key and sends it only to the official API hosts. Yandex Cloud bills Wordstat requests to the owner's account: run `wordstat.py ... --dry-run` first, it shows the requests, the price and the time.
+
+## Keys file
+
+The owner's keys file, set as the plugin option keys_file: ${user_config.keys_file}
+
+- A path shows after the colon: add `--keys '${user_config.keys_file}'` to `seo_check.py`, `indexnow.py`, `seo_index.py` and `wordstat.py` commands; the skills write it that way.
+- Nothing shows after the colon, or the placeholder with the dollar sign is still there: no keys file is set. The same commands still run: the key steps are SKIP, `wordstat.py` works with `--dry-run` and `tree`. To set one, the owner runs `python scripts/seo_keys.py init ~/.config/seo-ops/keys.env`, fills in the keys they have and names the file with `/plugin configure seo-ops@goldensample-seo`.
+- Never open, print, copy or paste the keys file or a value from it, and never ask the owner to paste a key into the chat. `python scripts/seo_keys.py check <file>` shows which names are set, without the values.
+- The file holds one `NAME=value` per line, the same names as the CI secrets: `INDEXNOW_KEY`, `YANDEX_WEBMASTER_TOKEN`, `GSC_ACCESS_TOKEN` or `GSC_CLIENT_ID` + `GSC_CLIENT_SECRET` + `GSC_REFRESH_TOKEN`, `GSC_PROPERTY`, `YANDEX_CLOUD_API_KEY` or `YANDEX_CLOUD_IAM_TOKEN`, `YANDEX_CLOUD_FOLDER_ID`. Keep it outside any repository: the scripts warn when it sits inside one or other users can read it.
 
 ## Evidence levels
 

@@ -44,7 +44,7 @@ The match is word overlap after simple stemming, with Cyrillic words also tried 
 
 - Anonymized queries are left out of query data, even in the bulk export (Official: https://support.google.com/webmasters/answer/12918484 , checked 2026-11-25). So the query rows add up to less than the site totals.
 - The help pages state no row limit for the interface export. For complete data Google offers a scheduled daily bulk export to BigQuery (Official, same page). For a small site the interface export is usually enough (Practice).
-- Impressions are not demand in full: a query where the site is not shown at all never appears. For demand the site does not touch yet, use Wordstat (`scripts/wordstat.py` with the owner's Yandex Cloud key, or the Wordstat site) or Keyword Planner (seo-semantic-core).
+- Impressions are not demand in full: a query where the site is not shown at all never appears. For demand the site does not touch yet, use Wordstat (`scripts/wordstat.py` with the owner's Yandex Cloud key in the keys file, or the Wordstat site) or Keyword Planner (seo-semantic-core).
 - Brand and navigational queries show up as gaps when no page title holds the brand; skip them.
 
 ## Events

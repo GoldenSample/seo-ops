@@ -31,7 +31,7 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 
 def to_date(s) -> datetime.date:
     if not isinstance(s, str) or not re.match(r'^\d{4}-\d{2}-\d{2}$', s):

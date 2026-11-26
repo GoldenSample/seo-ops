@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.0 (2026-11-26)
+
+- Keys only from a keys file. The scripts that call an API with your keys (`seo_index.py`, `wordstat.py`, `indexnow.py`, `seo_check.py`) read them only from the file you name with `--keys FILE` and no longer read environment variables. Behaviour change for direct runs: with the keys in the environment, `seo_index.py` and the indexnow-key check of `seo_check.py` now say SKIP, and `wordstat.py` and `indexnow.py` stop with "no key"; move the keys into a keys file.
+- New `scripts/seo_keys.py`: `init` writes a template with every name (mode 600, it never overwrites a file); `check` shows which names are set and which scripts can use them, never the values. One `NAME=value` per line, the same names as the CI secrets. An unknown name, a name set twice or a line without `=` is an error with the line number and without the value. The scripts warn when the file sits inside a git repository or other users can read it.
+- Plugin option `keys_file` (userConfig: a path, not a secret). Name the file once with `/plugin configure seo-ops@goldensample-seo`, or with `--config keys_file=<path>` at install; the skills pass it with `--keys`. Claude Code stores only the path. Without it the skills run the same commands without keys: the key steps say SKIP or stop with "no key".
+- New flags: `seo_index.py --gsc-property` (else `GSC_PROPERTY` of the keys file) and `wordstat.py --folder-id` (else `YANDEX_CLOUD_FOLDER_ID` of the keys file).
+- The plugin manifest declares the API hosts the scripts call: api.indexnow.org, api.webmaster.yandex.net, oauth2.googleapis.com, www.googleapis.com, searchconsole.googleapis.com and searchapi.api.cloud.yandex.net.
+- Cron: the CI secret names did not change. Each step with a secret writes it to a keys file in `$RUNNER_TEMP` (mode 600, removed when the step ends) and passes the file with `--keys`; the index step passes the `gsc_property` input as `--gsc-property`.
+- The deploy template shows `gh workflow run` instead of a curl command with a token variable; seo-calendar names it for the deploy run.
+- The skills (seo-ops has a new Keys file section; seo-launch, seo-yandex, seo-semantic-core, seo-measure and seo-query-gaps), the README, PRIVACY.md and SECURITY.md describe the keys file.
+- CI runs the tests of the keys file.
+- Scripts and the cron workflow changed, so `v1` moves to 1.2.0.
+
 ## 1.1.1 (2026-11-26)
 
 - `serp_cluster.py` passed `maxsplit` to `re.split` by position. Python 3.13 and later warn about that, and CI runs the tests with warnings as errors, so on the runner's own python3 (3.14 on ubuntu-latest) the cluster tests failed and CI of 1.1.0 was red. It now passes `maxsplit=1` by name; the clusters are the same.

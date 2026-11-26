@@ -20,8 +20,8 @@ The help page on ranking and Alice AI answers names expertise, usefulness, origi
 2. Region: in Webmaster (site presentation, regional settings) or through Yandex Business. As a rule one region; several only for sites with branch offices. Moderation takes days to weeks. Write the address with the postal code and the phone with the city code as text on the site. Official: https://yandex.ru/support/webmaster/ru/site-geography/site-region.html
 3. robots.txt: `Clean-param:` for tracking parameters. It is cross-section and can stand anywhere in the file. If the file has a `User-agent: Yandex` group, Yandex ignores the `*` group, so repeat every rule there. Official: https://yandex.ru/support/webmaster/ru/robot-workings/clean-param
 4. `launch-product-feeds`: a YML feed in the Yandex Products account (Products, Data sources, Feeds); the review takes up to 5 working days. Check the account's current store requirements before you build the feed. Official: https://yandex.ru/support2/products/ru/connect/feed-load
-5. `launch-indexnow`: generate a key (8 to 128 characters: letters, digits, `-`), serve it as plain text at `https://example.com/<key>.txt`, keep it in the `INDEXNOW_KEY` secret. Check: `python scripts/indexnow.py --site example.com --check-key`.
-6. At launch, send the whole sitemap once: `python scripts/indexnow.py --site example.com --all --submit`.
+5. `launch-indexnow`: generate a key (8 to 128 characters: letters, digits, `-`), serve it as plain text at `https://example.com/<key>.txt`, keep it in the `INDEXNOW_KEY` CI secret and in the owner's keys file (seo-ops, Keys file). Check: `python scripts/indexnow.py --site example.com --keys '${user_config.keys_file}' --check-key`.
+6. At launch, send the whole sitemap once: `python scripts/indexnow.py --site example.com --keys '${user_config.keys_file}' --all --submit`.
 
 ## IndexNow (checked 2026-11-25)
 
@@ -29,7 +29,7 @@ The help page on ranking and Alice AI answers names expertise, usefulness, origi
 - Yandex: up to 10,000 URLs in one POST; 429 when one IP sends too much; one URL not more often than every 10 minutes. Official: https://yandex.ru/support/webmaster/ru/indexnow/reference
 - After the October 2026 incident, YandexBot made 0 of 24 visits to pages sent by IndexNow within 14 days in one test of 48 pages; Google found 23 of 24 through the sitemap (vc.ru, 13 November 2026, small sample, low confidence by the authors). Treat IndexNow as a hint, keep the sitemap and internal links right.
 
-`scripts/indexnow.py` keeps these rules. Every command reads the key from `INDEXNOW_KEY` or `--key`, a dry run too:
+`scripts/indexnow.py` keeps these rules. Every command, a dry run too, takes the key from `--key` or from `INDEXNOW_KEY` of the keys file, never from the environment: add `--keys '${user_config.keys_file}'` to each line below.
 
 ```
 python scripts/indexnow.py --site example.com                       # dry run, lastmod in the last 26 hours

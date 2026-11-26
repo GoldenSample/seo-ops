@@ -4,9 +4,12 @@ seo_check.py: external SEO check of a live site. Python 3.9+, standard library o
 
 Usage
   python seo_check.py example.com [--pages 8] [--json out.json] [--md out.md]
-                      [--engines google,yandex,bing] [--indexnow-key KEY]
+                      [--engines google,yandex,bing] [--indexnow-key KEY | --keys FILE]
                       [--max-requests 60] [--resolve host=IP] [--fail-on fail|warn]
   python seo_check.py --selftest
+
+The IndexNow key comes from --indexnow-key or from INDEXNOW_KEY of the keys file named with --keys
+(seo_keys.py), never from the environment.
 
 The host you pass is the canonical host (with or without www, as your site uses it).
 The script reads robots.txt, the sitemap, a sample of sitemap URLs and a few special paths and prints
@@ -40,7 +43,7 @@ import zlib
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 UA = "seo-ops-check/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 MIN_INTERVAL = 0.5          # 2 requests per second
 TIMEOUT = 15
@@ -994,7 +997,7 @@ def check_self_ratings(pages):
 
 def check_indexnow_key(key, resp):
     if not key:
-        return R("indexnow-key", "SKIP", "no key given (--indexnow-key or INDEXNOW_KEY)")
+        return R("indexnow-key", "SKIP", "no key given (--indexnow-key KEY, or INDEXNOW_KEY in the --keys file)")
     u = no_answer(resp, "indexnow-key", "key file")
     if u:
         return u
@@ -1375,7 +1378,9 @@ def main(argv=None):
     ap.add_argument("--json", help="write results as JSON to this file")
     ap.add_argument("--md", help="write a Markdown report to this file (for a CI job summary)")
     ap.add_argument("--engines", default="google,yandex,bing", help="search engines to check robots.txt for")
-    ap.add_argument("--indexnow-key", default=os.environ.get("INDEXNOW_KEY"), help="IndexNow key (default: INDEXNOW_KEY)")
+    ap.add_argument("--indexnow-key", help="IndexNow key (else INDEXNOW_KEY of the --keys file)")
+    ap.add_argument("--keys", metavar="FILE", help="keys file (seo_keys.py) with INDEXNOW_KEY; the environment is "
+                    "not read for keys")
     ap.add_argument("--max-requests", type=int, default=60, help="request budget for one run (default 60)")
     ap.add_argument("--resolve", action="append", default=[], metavar="HOST=IP",
                     help="like curl --resolve: connect to IP for HOST, TLS and Host header stay the same")
@@ -1388,6 +1393,17 @@ def main(argv=None):
         ap.print_usage()
         print("error: give a host or --selftest")
         return 2
+    keys = {}
+    if a.keys:
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import seo_keys  # noqa: E402  (same scripts folder)
+        try:
+            keys = seo_keys.keys_from_args(a.keys)
+        except seo_keys.KeysFileError as e:
+            print("error: %s" % e)
+            return 2
     if a.resolve:
         pins = dict(x.lower().split("=", 1) for x in a.resolve if "=" in x)
         _orig = socket.getaddrinfo
@@ -1395,9 +1411,10 @@ def main(argv=None):
         def _pinned(h, *args, **kw):
             return _orig(pins.get(str(h).lower(), h), *args, **kw)
         socket.getaddrinfo = _pinned
+    key = (a.indexnow_key or keys.get("INDEXNOW_KEY") or "").strip() or None
     host = re.sub(r"^https?://", "", a.host.strip()).strip("/").split("/")[0].lower()
     engines = [e.strip().lower() for e in a.engines.split(",") if e.strip()]
-    res, n, note = run(host, max(a.pages, 1), (a.indexnow_key or "").strip() or None, engines, max(a.max_requests, 10))
+    res, n, note = run(host, max(a.pages, 1), key, engines, max(a.max_requests, 10))
     if res is None:
         print("SITE UNREACHABLE: " + note)
         return 2

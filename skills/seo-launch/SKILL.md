@@ -25,10 +25,10 @@ Launch day (`offset_days` 0 in the calendar):
 9. `launch-assets`: webp or avif images with width, height and alt; hashed static files cached for a year; no public source maps; gzip or br; HTTP/2. Checks: images, static-cache, source-maps, transport.
 10. `launch-speed`: Core Web Vitals at the 75th percentile: LCP up to 2.5 s, INP up to 200 ms, CLS up to 0.1. PageSpeed Insights on the home page, a category and a product page; field data appears only after enough visits.
 11. `launch-trust-pages`: contacts with address and phone as text, delivery, returns and warranty, privacy policy, terms, seller details. Yandex lists address, details and contacts among the signals for search and Alice answers.
-12. `launch-indexnow`: a key file at `/<key>.txt` and the key in a CI secret. Checks: indexnow-key (`--indexnow-key KEY` or the `INDEXNOW_KEY` variable), `python scripts/indexnow.py --site example.com --check-key`.
-13. `launch-final-check`: `python scripts/seo_check.py example.com --pages 20` exits 0; each WARN is fixed or written down as a decision.
+12. `launch-indexnow`: a key file at `/<key>.txt`, the key in the `INDEXNOW_KEY` CI secret and in the owner's keys file (seo-ops, Keys file). Checks: indexnow-key (`--indexnow-key KEY`, or `INDEXNOW_KEY` of the file named with `--keys`), `python scripts/indexnow.py --site example.com --keys '${user_config.keys_file}' --check-key`.
+13. `launch-final-check`: `python scripts/seo_check.py example.com --pages 20 --keys '${user_config.keys_file}'` exits 0; each WARN is fixed or written down as a decision.
 
-Follow-up: `launch-indexing-d14`, two weeks later: which sitemap URLs are indexed. `python scripts/seo_index.py example.com` lists the missing ones with the reason when the owner's keys are set (Index coverage below); without keys, compare in Search Console and Yandex Webmaster by hand. A page that is crawled but not indexed needs better content or internal links, not daily resubmission.
+Follow-up: `launch-indexing-d14`, two weeks later: which sitemap URLs are indexed. `python scripts/seo_index.py example.com --keys '${user_config.keys_file}'` lists the missing ones with the reason when the owner's keys file has the keys (Index coverage below); without keys, compare in Search Console and Yandex Webmaster by hand. A page that is crawled but not indexed needs better content or internal links, not daily resubmission.
 
 Dashboards, analytics, business profiles and feeds have their own skills: seo-google, seo-yandex, seo-measure, seo-local.
 
@@ -101,15 +101,15 @@ A 429 or 503 makes the crawler wait (Retry-After, else 10 s doubling) and slow d
 
 ## Index coverage: seo_index.py
 
-Which published pages each engine has not indexed, and the reason it gives. Published pages are the sitemap URLs, or with `--pages crawl.json` the indexable 200 pages of a crawl. The keys are the owner's own, from the environment or CI secrets; the pack has none, and without a key that engine's line is SKIP.
+Which published pages each engine has not indexed, and the reason it gives. Published pages are the sitemap URLs, or with `--pages crawl.json` the indexable 200 pages of a crawl. The keys are the owner's own, read only from the keys file named with `--keys` (seo-ops, Keys file; in the cron, a file the workflow writes from the CI secrets), never from the environment; the pack has none, and without a key that engine's line is SKIP.
 
 ```
-python scripts/seo_index.py example.com --md index.md --json index.json
-python scripts/seo_index.py example.com --pages crawl-2026-12-01.json --google-max 300
+python scripts/seo_index.py example.com --keys '${user_config.keys_file}' --md index.md --json index.json
+python scripts/seo_index.py example.com --keys '${user_config.keys_file}' --pages crawl-2026-12-01.json --google-max 300
 ```
 
-- **Yandex**: create an app at https://oauth.yandex.ru/client/new with the Webmaster rights (`webmaster:hostinfo`, `webmaster:verify`), then open `https://oauth.yandex.ru/authorize?response_type=token&client_id=<id>` and put the token into `YANDEX_WEBMASTER_TOKEN`. It lives 6 months (Official: https://yandex.ru/dev/webmaster/doc/ru/tasks/how-to-get-oauth , checked 2026-11-26). The script reads the pages in search, the search events (appeared, removed, with the reason) and the robot's crawl samples.
-- **Google**: an OAuth client in a Google Cloud project with the Search Console API enabled; authorize once with `access_type=offline` and the scope `https://www.googleapis.com/auth/webmasters.readonly`, then set `GSC_CLIENT_ID`, `GSC_CLIENT_SECRET` and `GSC_REFRESH_TOKEN` (Official: https://developers.google.com/identity/protocols/oauth2/web-server , checked 2026-11-26). While the consent screen of an external app is in the Testing status, Google issues refresh tokens that expire after seven days, and a refresh token unused for six months stops working (Official: https://developers.google.com/identity/protocols/oauth2 , checked 2026-11-26): for the monthly cron, publish the app first. `GSC_PROPERTY` names the property (`https://example.com/` or `sc-domain:example.com`); without it the account's site list is searched. URL Inspection runs for up to `--google-max` URLs (default 100); Google allows 2000 a day and 600 a minute per site (Official: https://developers.google.com/webmaster-tools/limits , checked 2026-11-26).
+- **Yandex**: create an app at https://oauth.yandex.ru/client/new with the Webmaster rights (`webmaster:hostinfo`, `webmaster:verify`), then open `https://oauth.yandex.ru/authorize?response_type=token&client_id=<id>` and put the token into `YANDEX_WEBMASTER_TOKEN` of the keys file (and of the CI secrets for the cron). It lives 6 months (Official: https://yandex.ru/dev/webmaster/doc/ru/tasks/how-to-get-oauth , checked 2026-11-26). The script reads the pages in search, the search events (appeared, removed, with the reason) and the robot's crawl samples.
+- **Google**: an OAuth client in a Google Cloud project with the Search Console API enabled; authorize once with `access_type=offline` and the scope `https://www.googleapis.com/auth/webmasters.readonly`, then put `GSC_CLIENT_ID`, `GSC_CLIENT_SECRET` and `GSC_REFRESH_TOKEN` into the keys file and the CI secrets (Official: https://developers.google.com/identity/protocols/oauth2/web-server , checked 2026-11-26). While the consent screen of an external app is in the Testing status, Google issues refresh tokens that expire after seven days, and a refresh token unused for six months stops working (Official: https://developers.google.com/identity/protocols/oauth2 , checked 2026-11-26): for the monthly cron, publish the app first. `GSC_PROPERTY` of the keys file or `--gsc-property` (the cron input `gsc_property`) names the property (`https://example.com/` or `sc-domain:example.com`); without it the account's site list is searched. URL Inspection runs for up to `--google-max` URLs (default 100); Google allows 2000 a day and 600 a minute per site (Official: https://developers.google.com/webmaster-tools/limits , checked 2026-11-26).
 - Token values never reach the output: every line, the JSON and the Markdown pass a filter that replaces them with `***`, and a token goes only to the official API hosts.
 
 | Line | Meaning |
@@ -123,7 +123,7 @@ Reasons decide the fix: a technical one (noindex, canonical elsewhere, redirect,
 
 - `weekly-audit` (cron): the weekly workflow runs `seo_check.py --pages 12`; read new WARN lines.
 - `weekly-crawl` (cron): the same workflow then runs `seo_crawl.py` over the whole site (input `crawl_pages`, default 200 URLs, 0 turns it off); a FAIL fails the run.
-- `monthly-index-coverage`: with the index secrets the monthly workflow runs `seo_index.py` and puts the report into the monthly issue; without them run it locally with the owner's keys, or compare by hand in Search Console and Yandex Webmaster.
+- `monthly-index-coverage`: with the index secrets the monthly workflow runs `seo_index.py` and puts the report into the monthly issue; without them run it locally with the owner's keys file, or compare by hand in Search Console and Yandex Webmaster.
 - `monthly-schema-spotcheck`: Rich Results Test on 5 to 10 product pages; product snippet and merchant listing reports in Search Console; the Yandex validator. No errors in price and availability.
 - `quarterly-crawl`: a deep crawl, `python scripts/seo_crawl.py example.com --max-pages 2000 --max-seconds 0 --json crawl-<date>.json --compare <last crawl JSON>`, or a desktop crawler; compare with the last crawl to catch template regressions.
 - `yearly-security-txt`: move the Expires date of security.txt.

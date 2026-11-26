@@ -105,11 +105,25 @@ class Mock:
         return 404, {"code": 5, "message": "not found"}, {}
 
 
+KEYS_DIR = tempfile.mkdtemp(prefix="wordstat_keys_")
+made = [0]
+
+
+def keys_file(text):
+    """A keys file (mode 600, outside any repository) with this text."""
+    made[0] += 1
+    path = os.path.join(KEYS_DIR, "keys%d.env" % made[0])
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
+
+
 @contextlib.contextmanager
 def env(**kw):
-    keys = set(m.SECRET_ENV) | {"SEO_OPS_API_BASE", "YANDEX_CLOUD_FOLDER_ID"}
-    old = {k: os.environ.get(k) for k in keys}
-    for k in keys:
+    names = set(m.seo_keys.NAMES) | {"SEO_OPS_API_BASE"}
+    old = {k: os.environ.get(k) for k in names}
+    for k in names:
         os.environ.pop(k, None)
     os.environ.update(kw)
     try:
@@ -122,9 +136,17 @@ def env(**kw):
                 os.environ[k] = v
 
 
-def run(args, **kw):
+def run(args, env_keys=False, **kw):
+    """wordstat.main(args). The key names among kw go to a keys file passed with --keys; with env_keys=True
+    they go to the environment instead and no --keys is passed (the script must not read them there)."""
+    keys = {k: v for k, v in kw.items() if k in m.seo_keys.NAMES}
+    rest = {k: v for k, v in kw.items() if k not in keys}
+    if env_keys:
+        rest.update(keys)
+    elif keys:
+        args = list(args) + ["--keys", keys_file("".join("%s=%s\n" % kv for kv in keys.items()))]
     out = io.StringIO()
-    with env(**kw), contextlib.redirect_stdout(out):
+    with env(**rest), contextlib.redirect_stdout(out):
         code = m.main(args)
     return code, out.getvalue()
 
@@ -243,6 +265,26 @@ check("foreign API base: exit 2", code == 2 and mock.log == [])
 fresh_cache()
 code, out = run(["top", "x", "--cache", CACHE], SEO_OPS_API_BASE=mock.o)
 check("no key: exit 2 with a hint", code == 2 and "--dry-run works without a key" in out)
+mock.reset()
+fresh_cache()
+code, out = run(["top", "x", "--cache", CACHE], env_keys=True, **E)
+check("key in the environment: not read", code == 2 and "in the keys file (--keys FILE" in out and mock.log == [])
+mock.reset()
+code, out = run(["top", "x", "--cache", CACHE, "--keys", "${user_config.keys_file}"], SEO_OPS_API_BASE=mock.o)
+check("unfilled plugin option: same as no keys file", code == 2 and "--dry-run works without a key" in out
+      and mock.log == [])
+mock.reset()
+code, out = run(["top", "x", "--cache", CACHE, "--keys", os.path.join(KEYS_DIR, "missing.env")],
+                SEO_OPS_API_BASE=mock.o)
+check("missing keys file: exit 2", code == 2 and "keys file not found" in out and mock.log == [])
+mock.reset()
+code, out = run(["top", "x", "--cache", CACHE, "--keys", keys_file("YANDEX_CLOUD_KEY=%s\n" % KEY)],
+                SEO_OPS_API_BASE=mock.o)
+check("bad keys file: exit 2, value not shown", code == 2 and "line 1" in out and KEY not in out and mock.log == [])
+mock.reset()
+fresh_cache()
+code, out = run(["top", "x", "--cache", CACHE, "--folder-id", "b1g-flag"], **E)
+check("--folder-id wins over the keys file", code == 0 and mock.log and mock.log[0][2].get("folderId") == "b1g-flag")
 
 # 8. dynamics: dates moved to the start of the period
 mock.reset()
@@ -302,5 +344,6 @@ check("csv cp1251 with a header", [b["phrase"] for _, _, b, _ in mock.log] == ["
 mock.srv.shutdown()
 mock.srv.server_close()
 shutil.rmtree(tmp, ignore_errors=True)
+shutil.rmtree(KEYS_DIR, ignore_errors=True)
 print(json.dumps({"ok": not bad, "total": total, "bad": bad}, ensure_ascii=False))
 sys.exit(0 if not bad else 1)

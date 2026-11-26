@@ -9,7 +9,8 @@ Usage
                               [--to 2026-11-01] [--regions 213] [--devices all]
   python wordstat.py regions  "phrase" ... [--phrases FILE] [--region-type all|cities|regions] [--names]
   python wordstat.py tree
-  every command: [--csv out.csv] [--json out.json] [--cache DIR] [--cache-days 7] [--per-hour 100] [--dry-run]
+  every command: [--keys FILE] [--folder-id ID] [--csv out.csv] [--json out.json] [--cache DIR] [--cache-days 7]
+                 [--per-hour 100] [--dry-run]
 
   top       how often the phrase was searched in the last 30 days, the queries that contain it and similar
             queries (numPhrases up to 2000)
@@ -18,9 +19,11 @@ Usage
             --names adds region names from the regions tree
   tree      the regions tree with IDs (free)
 
-Key, from your environment only: YANDEX_CLOUD_API_KEY (API key of a service account with the role
-search-api.webSearch.user) or YANDEX_CLOUD_IAM_TOKEN (lives up to 12 hours); YANDEX_CLOUD_FOLDER_ID names the
-folder (with a service-account key the API finds it by itself). The key never reaches the output.
+Key, only from the keys file named with --keys FILE (seo_keys.py; in Claude Code the plugin option keys_file),
+never from the environment: YANDEX_CLOUD_API_KEY (API key of a service account with the role
+search-api.webSearch.user) or YANDEX_CLOUD_IAM_TOKEN (lives up to 12 hours); YANDEX_CLOUD_FOLDER_ID or
+--folder-id names the folder (with a service-account key the API finds it by itself). The key never reaches
+the output.
 
 Price and pace (Yandex pages checked 2026-11-26: https://aistudio.yandex.ru/ru/docs/search-api/pricing ,
 https://aistudio.yandex.ru/ru/docs/search-api/concepts/limits): top and dynamics 20 RUB, regions 50 RUB per
@@ -53,8 +56,9 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seo_check as sc  # noqa: E402  (same scripts folder)
 import seo_index as si  # noqa: E402
+import seo_keys  # noqa: E402
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 UA = "seo-ops-wordstat/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 API = "https://searchapi.api.cloud.yandex.net"
 API_HOST = "searchapi.api.cloud.yandex.net"
@@ -64,7 +68,7 @@ PRICE = {"top": 20.0, "dynamics": 20.0, "regions": 50.0, "tree": 0.0}   # RUB pe
 DEVICES = {"all": "DEVICE_ALL", "desktop": "DEVICE_DESKTOP", "phone": "DEVICE_PHONE", "tablet": "DEVICE_TABLET"}
 PERIODS = {"monthly": "PERIOD_MONTHLY", "weekly": "PERIOD_WEEKLY", "daily": "PERIOD_DAILY"}
 REGION_TYPES = {"all": "REGION_ALL", "cities": "REGION_CITIES", "regions": "REGION_REGIONS"}
-SECRET_ENV = ("YANDEX_CLOUD_API_KEY", "YANDEX_CLOUD_IAM_TOKEN")
+KEY_NAMES = ("YANDEX_CLOUD_API_KEY", "YANDEX_CLOUD_IAM_TOKEN")
 HOUR = 3600.0
 MIN_GAP = 0.2        # at most 5 requests a second (the quota allows 10)
 WAIT_429 = 300.0     # pause after 429 without Retry-After
@@ -371,6 +375,9 @@ def build_parser():
         p.add_argument("--cache-days", type=int, default=7, help="reuse cached answers this young (0 = never)")
         p.add_argument("--per-hour", type=int, default=100, help="requests per sliding hour (Yandex quota 100)")
         p.add_argument("--dry-run", action="store_true", help="print requests, price and time; send nothing")
+        p.add_argument("--keys", metavar="FILE", help="keys file (seo_keys.py) with YANDEX_CLOUD_API_KEY or "
+                       "YANDEX_CLOUD_IAM_TOKEN; the environment is not read for keys")
+        p.add_argument("--folder-id", help="Yandex Cloud folder ID (else YANDEX_CLOUD_FOLDER_ID of the keys file)")
 
     def phrases(p):
         p.add_argument("phrase", nargs="*")
@@ -407,15 +414,20 @@ def main(argv=None):
         pass
     ap = build_parser()
     a = ap.parse_args(argv)
-    secrets = si.Secrets()
-    for k in SECRET_ENV:
-        secrets.add(os.environ.get(k, ""))
-
-    def say(s=""):
-        print(secrets.scrub(s))
     if not a.cmd:
         ap.print_usage()
         return 2
+    try:
+        keys = seo_keys.keys_from_args(a.keys)
+    except seo_keys.KeysFileError as e:
+        print("error: %s" % e)
+        return 2
+    secrets = si.Secrets()
+    for k in KEY_NAMES:
+        secrets.add(keys.get(k, ""))
+
+    def say(s=""):
+        print(secrets.scrub(s))
     problem = si.api_base_problem()
     if problem:
         say("error: " + problem)
@@ -447,7 +459,7 @@ def main(argv=None):
         if not phrase_list:
             say("error: no phrase (give phrases or --phrases FILE)" + ("; " + "; ".join(problems) if problems else ""))
             return 2
-    folder = os.environ.get("YANDEX_CLOUD_FOLDER_ID", "").strip()
+    folder = (a.folder_id or keys.get("YANDEX_CLOUD_FOLDER_ID") or "").strip()
     cache = Cache(a.cache, a.cache_days)
     bodies = [(p, body_for(a.cmd, p, a, folder)) for p in phrase_list]
     want_names = a.cmd == "regions" and a.names
@@ -466,10 +478,10 @@ def main(argv=None):
         for p in problems:
             say("skipped: " + p)
         return 0
-    key = os.environ.get("YANDEX_CLOUD_API_KEY", "").strip()
-    iam = os.environ.get("YANDEX_CLOUD_IAM_TOKEN", "").strip()
+    key = keys.get("YANDEX_CLOUD_API_KEY", "").strip()
+    iam = keys.get("YANDEX_CLOUD_IAM_TOKEN", "").strip()
     if not key and not iam and (todo or extra_tree):
-        say("error: no YANDEX_CLOUD_API_KEY or YANDEX_CLOUD_IAM_TOKEN in the environment (see the docstring of "
+        say("error: no YANDEX_CLOUD_API_KEY or YANDEX_CLOUD_IAM_TOKEN in the keys file (--keys FILE; see the docstring of "
             "this script for how to get one); --dry-run works without a key")
         return 2
     client = Client("Api-Key " + key if key else "Bearer " + iam, secrets, Pace(a.per_hour), say)

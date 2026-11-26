@@ -6,10 +6,10 @@
 #          needs: deploy
 #          uses: ./.github/workflows/seo-on-deploy.yml
 #          secrets: inherit
-#   2. from a deploy script on a server:
-#        curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
-#          https://api.github.com/repos/OWNER/REPO/dispatches -d '{"event_type":"seo-deploy"}'
-#      ($TOKEN: a fine-grained token with Contents read and write on this repository only)
+#   2. from a deploy script on a server where the GitHub CLI is signed in (gh auth login):
+#        gh workflow run seo-on-deploy.yml --repo OWNER/REPO
+#      or send a repository_dispatch event of type seo-deploy (GitHub REST API, "Create a repository dispatch
+#      event"; a fine-grained token with Contents read and write on this repository only)
 #   3. by hand: Actions, seo-on-deploy, Run workflow.
 # Calendar task: event-deploy.
 name: seo-on-deploy

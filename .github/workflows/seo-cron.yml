@@ -12,6 +12,8 @@
 # another tool sends); off ignores the secret.
 # Index secrets (optional, monthly only, passed to that one step): YANDEX_WEBMASTER_TOKEN for Yandex Webmaster;
 # GSC_CLIENT_ID, GSC_CLIENT_SECRET and GSC_REFRESH_TOKEN for Search Console. Without them the index step is skipped.
+# The scripts never read keys from the environment: each step that has a secret writes it to a keys file in
+# $RUNNER_TEMP (mode 600, removed when the step ends) and passes the file with --keys.
 # The job fails when seo_check.py or seo_crawl.py finds a FAIL, or when seo_index.py cannot use a key it was given.
 name: seo-cron
 
@@ -131,9 +133,13 @@ jobs:
         env:
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: |
-          if [ "$INDEXNOW_MODE" = "off" ]; then unset INDEXNOW_KEY; fi
+          keys="$RUNNER_TEMP/seo-ops-keys.env"
+          trap 'rm -f "$keys"' EXIT
+          (umask 077; : > "$keys")
+          if [ "$INDEXNOW_MODE" != "off" ] && [ -n "$INDEXNOW_KEY" ]; then printf 'INDEXNOW_KEY=%s\n' "$INDEXNOW_KEY" >> "$keys"; fi
+          unset INDEXNOW_KEY
           set +e
-          python3 .seo-ops/scripts/seo_check.py "$SITE" --pages "$PAGES" --md seo-check.md --json seo-check.json --fail-on "$FAIL_ON"
+          python3 .seo-ops/scripts/seo_check.py "$SITE" --keys "$keys" --pages "$PAGES" --md seo-check.md --json seo-check.json --fail-on "$FAIL_ON"
           code=$?
           set -e
           if [ -f seo-check.md ]; then cat seo-check.md >> "$GITHUB_STEP_SUMMARY"; fi
@@ -156,7 +162,11 @@ jobs:
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: |
           if [ -z "$INDEXNOW_KEY" ]; then echo "No INDEXNOW_KEY secret: IndexNow skipped."; exit 0; fi
-          python3 .seo-ops/scripts/indexnow.py --site "$SITE" --since-hours "$SINCE_HOURS" --submit
+          keys="$RUNNER_TEMP/seo-ops-keys.env"
+          trap 'rm -f "$keys"' EXIT
+          (umask 077; printf 'INDEXNOW_KEY=%s\n' "$INDEXNOW_KEY" > "$keys")
+          unset INDEXNOW_KEY
+          python3 .seo-ops/scripts/indexnow.py --site "$SITE" --keys "$keys" --since-hours "$SINCE_HOURS" --submit
 
       - name: Index coverage
         id: index
@@ -166,15 +176,26 @@ jobs:
           GSC_CLIENT_ID: ${{ secrets.GSC_CLIENT_ID }}
           GSC_CLIENT_SECRET: ${{ secrets.GSC_CLIENT_SECRET }}
           GSC_REFRESH_TOKEN: ${{ secrets.GSC_REFRESH_TOKEN }}
-          GSC_PROPERTY: ${{ inputs.gsc_property }}
+          GSC_PROPERTY_IN: ${{ inputs.gsc_property }}
         run: |
           if [ -z "$YANDEX_WEBMASTER_TOKEN$GSC_CLIENT_ID$GSC_CLIENT_SECRET$GSC_REFRESH_TOKEN" ]; then
             echo "No index secrets (YANDEX_WEBMASTER_TOKEN; GSC_CLIENT_ID, GSC_CLIENT_SECRET, GSC_REFRESH_TOKEN): index coverage skipped." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          if [ -z "$GSC_PROPERTY" ]; then unset GSC_PROPERTY; fi
+          keys="$RUNNER_TEMP/seo-ops-keys.env"
+          trap 'rm -f "$keys"' EXIT
+          (
+            umask 077
+            : > "$keys"
+            for name in YANDEX_WEBMASTER_TOKEN GSC_CLIENT_ID GSC_CLIENT_SECRET GSC_REFRESH_TOKEN; do
+              if [ -n "${!name}" ]; then printf '%s=%s\n' "$name" "${!name}" >> "$keys"; fi
+            done
+          )
+          unset YANDEX_WEBMASTER_TOKEN GSC_CLIENT_ID GSC_CLIENT_SECRET GSC_REFRESH_TOKEN
+          prop=()
+          if [ -n "$GSC_PROPERTY_IN" ]; then prop=(--gsc-property "$GSC_PROPERTY_IN"); fi
           set +e
-          python3 .seo-ops/scripts/seo_index.py "$SITE" --google-max "$GOOGLE_MAX" --md seo-index.md --json seo-index.json
+          python3 .seo-ops/scripts/seo_index.py "$SITE" --keys "$keys" "${prop[@]}" --google-max "$GOOGLE_MAX" --md seo-index.md --json seo-index.json
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"

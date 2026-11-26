@@ -4,20 +4,21 @@ seo_index.py: which published pages of a site are missing from the Yandex and Go
 Python 3.9+, standard library only.
 
 Usage
-  python seo_index.py example.com [--pages crawl.json] [--google-max 100] [--json index.json] [--md index.md]
-                      [--fail-on fail|warn]
+  python seo_index.py example.com --keys keys.env [--pages crawl.json] [--google-max 100] [--gsc-property PROP]
+                      [--json index.json] [--md index.md] [--fail-on fail|warn]
 
 Published pages = the URLs of the sitemap (robots.txt Sitemap lines, else /sitemap.xml; index files are
 followed) or, with --pages, the indexable 200 pages of a seo_crawl.py --json report.
 
-Keys come only from your environment or CI secrets; the pack has none. Without a key the engine's line is
-SKIP and the exit code stays 0.
+Keys come only from the keys file named with --keys FILE (seo_keys.py; in Claude Code the plugin option
+keys_file, in the cron a file the workflow writes from its secrets). The environment is never read for keys,
+and the pack has none. Without a key the engine's line is SKIP and the exit code stays 0. Names in the file:
   Yandex  YANDEX_WEBMASTER_TOKEN  OAuth token of your app with the right webmaster:hostinfo
           (https://yandex.ru/dev/webmaster/doc/ru/tasks/how-to-get-oauth); it lives 6 months.
   Google  GSC_ACCESS_TOKEN, or GSC_CLIENT_ID + GSC_CLIENT_SECRET + GSC_REFRESH_TOKEN, exchanged at
-          oauth2.googleapis.com for an access token (scope webmasters.readonly). GSC_PROPERTY names the
-          property (https://example.com/ or sc-domain:example.com); without it the site list of the account
-          is searched.
+          oauth2.googleapis.com for an access token (scope webmasters.readonly). GSC_PROPERTY or
+          --gsc-property names the property (https://example.com/ or sc-domain:example.com); without it the
+          site list of the account is searched.
 Token values never reach the output: every printed line, the JSON and the Markdown pass a filter that
 replaces them with ***. Requests carry a token only to the official API hosts below. SEO_OPS_API_BASE
 (for tests) sends them to a mock instead and may point only at 127.0.0.1, localhost or ::1.
@@ -55,8 +56,9 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seo_check as sc  # noqa: E402  (same scripts folder)
 import seo_crawl as cr  # noqa: E402
+import seo_keys  # noqa: E402
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 UA = "seo-ops-index/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 YANDEX = "https://api.webmaster.yandex.net/v4"
 GSC_INSPECT = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
@@ -64,7 +66,7 @@ GSC_SITES = "https://www.googleapis.com/webmasters/v3/sites"
 GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 API_HOSTS = ("api.webmaster.yandex.net", "searchconsole.googleapis.com", "www.googleapis.com", "oauth2.googleapis.com")
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
-SECRET_ENV = ("YANDEX_WEBMASTER_TOKEN", "GSC_ACCESS_TOKEN", "GSC_CLIENT_ID", "GSC_CLIENT_SECRET", "GSC_REFRESH_TOKEN")
+KEY_NAMES = ("YANDEX_WEBMASTER_TOKEN", "GSC_ACCESS_TOKEN", "GSC_CLIENT_ID", "GSC_CLIENT_SECRET", "GSC_REFRESH_TOKEN")
 API_INTERVAL = 0.2      # at most 5 API requests per second (Google allows 600 inspections a minute per site)
 PAGE = 100              # Webmaster samples per request (the API allows 1-100)
 MAX_IN_SEARCH = 50000   # the Webmaster API returns at most 50 000 URLs
@@ -357,17 +359,17 @@ def yandex(api, token, origin, published, per):
 
 # ---------------------------------------------------------------- Google
 
-def google_token(api, secrets):
+def google_token(api, secrets, keys):
     """(token, failure row); (None, None) when no Google key is set."""
-    tok = os.environ.get("GSC_ACCESS_TOKEN", "").strip()
+    tok = keys.get("GSC_ACCESS_TOKEN", "").strip()
     if tok:
         return tok, None
-    trio = [os.environ.get(k, "").strip() for k in ("GSC_CLIENT_ID", "GSC_CLIENT_SECRET", "GSC_REFRESH_TOKEN")]
+    trio = [keys.get(k, "").strip() for k in ("GSC_CLIENT_ID", "GSC_CLIENT_SECRET", "GSC_REFRESH_TOKEN")]
     if not any(trio):
         return None, None
     if not all(trio):
         return None, R("google-index", "FAIL", "set all three of GSC_CLIENT_ID, GSC_CLIENT_SECRET and "
-                       "GSC_REFRESH_TOKEN, or GSC_ACCESS_TOKEN")
+                       "GSC_REFRESH_TOKEN, or GSC_ACCESS_TOKEN, in the keys file")
     st, js, err = api.call("POST", GOOGLE_TOKEN, form={"client_id": trio[0], "client_secret": trio[1],
                                                        "grant_type": "refresh_token", "refresh_token": trio[2]})
     if st == 0:
@@ -378,8 +380,7 @@ def google_token(api, secrets):
     return js["access_token"], None
 
 
-def google_property(api, auth, origin):
-    prop = os.environ.get("GSC_PROPERTY", "").strip()
+def google_property(api, auth, origin, prop):
     if prop:
         return prop, None
     st, js, err = api.call("GET", GSC_SITES, auth)
@@ -395,7 +396,7 @@ def google_property(api, auth, origin):
         if cand in urls:
             return cand, None
     return None, R("google-index", "FAIL", "no verified Search Console property for %s://%s/ in this account (%d "
-                   "there): add it or set GSC_PROPERTY" % (origin[0], origin[1], len(urls)))
+                   "there): add it, or name it with --gsc-property" % (origin[0], origin[1], len(urls)))
 
 
 def google_reason(isr, url):
@@ -411,15 +412,16 @@ def google_reason(isr, url):
     return "; ".join(parts)
 
 
-def google(api, secrets, origin, published, google_max, per):
-    tok, fail = google_token(api, secrets)
+def google(api, secrets, keys, have_file, prop, origin, published, google_max, per):
+    tok, fail = google_token(api, secrets, keys)
     if fail:
         return [fail]
     if not tok:
-        return [R("google-index", "SKIP", "no GSC_ACCESS_TOKEN or GSC_CLIENT_ID + GSC_CLIENT_SECRET + "
-                  "GSC_REFRESH_TOKEN: Search Console is not asked")]
+        return [R("google-index", "SKIP", ("no GSC_ACCESS_TOKEN or GSC_CLIENT_ID + GSC_CLIENT_SECRET + "
+                  "GSC_REFRESH_TOKEN in the keys file" if have_file else "no keys file (--keys FILE)")
+                  + ": Search Console is not asked")]
     auth = "Bearer " + tok
-    prop, fail = google_property(api, auth, origin)
+    prop, fail = google_property(api, auth, origin, prop)
     if fail:
         return [fail]
     todo = published[:google_max]
@@ -488,18 +490,28 @@ def main(argv=None):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    ap = argparse.ArgumentParser(description="Published pages missing from the Yandex and Google index (keys from "
-                                             "your environment only).")
+    ap = argparse.ArgumentParser(description="Published pages missing from the Yandex and Google index (keys only "
+                                             "from --keys FILE).")
     ap.add_argument("site", help="canonical host, e.g. example.com, or an origin such as https://www.example.com")
     ap.add_argument("--pages", help="a seo_crawl.py --json report: use its indexable 200 pages instead of the sitemap")
     ap.add_argument("--google-max", type=int, default=100, help="URL Inspection requests at most (default 100)")
     ap.add_argument("--json", help="write the results and the per-page verdicts as JSON")
     ap.add_argument("--md", help="write a Markdown report (for a CI job summary or an issue)")
     ap.add_argument("--fail-on", choices=("fail", "warn"), default="fail")
+    ap.add_argument("--keys", metavar="FILE", help="keys file (seo_keys.py) with YANDEX_WEBMASTER_TOKEN and the "
+                    "GSC_* keys; the environment is not read for keys")
+    ap.add_argument("--gsc-property", help="Search Console property (else GSC_PROPERTY of the keys file, else "
+                    "found in the account)")
     a = ap.parse_args(argv)
+    have_file = seo_keys.resolve_path(a.keys) is not None
+    try:
+        keys = seo_keys.keys_from_args(a.keys)
+    except seo_keys.KeysFileError as e:
+        print("error: %s" % e)
+        return 2
     secrets = Secrets()
-    for k in SECRET_ENV:
-        secrets.add(os.environ.get(k, ""))
+    for k in KEY_NAMES:
+        secrets.add(keys.get(k, ""))
 
     def say(s=""):
         print(secrets.scrub(s))
@@ -523,12 +535,14 @@ def main(argv=None):
     per = {}
     res = [R("published", "INFO", note)]
     try:
-        ytok = os.environ.get("YANDEX_WEBMASTER_TOKEN", "").strip()
+        ytok = keys.get("YANDEX_WEBMASTER_TOKEN", "").strip()
         if ytok:
             res += yandex(api, ytok, origin, published, per)
         else:
-            res.append(R("yandex-index", "SKIP", "no YANDEX_WEBMASTER_TOKEN: Yandex Webmaster is not asked"))
-        res += google(api, secrets, origin, published, a.google_max, per)
+            res.append(R("yandex-index", "SKIP", ("no YANDEX_WEBMASTER_TOKEN in the keys file" if have_file
+                                                  else "no keys file (--keys FILE)") + ": Yandex Webmaster is not asked"))
+        prop = (a.gsc_property or keys.get("GSC_PROPERTY") or "").strip()
+        res += google(api, secrets, keys, have_file, prop, origin, published, a.google_max, per)
     except Unreachable as e:
         say("API UNREACHABLE: %s" % e)
         return 2

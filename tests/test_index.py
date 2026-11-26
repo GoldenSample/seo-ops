@@ -12,6 +12,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import socket
 import sys
 import tempfile
@@ -183,11 +184,25 @@ class Mock:
         return [x for x in self.log if x[1].split("/")[1] in m.API_HOSTS]
 
 
+KEYS_DIR = tempfile.mkdtemp(prefix="seo_index_keys_")
+made = [0]
+
+
+def keys_file(text):
+    """A keys file (mode 600, outside any repository) with this text."""
+    made[0] += 1
+    path = os.path.join(KEYS_DIR, "keys%d.env" % made[0])
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
+
+
 @contextlib.contextmanager
 def env(**kw):
-    keys = set(m.SECRET_ENV) | {"SEO_OPS_API_BASE", "GSC_PROPERTY"}
-    old = {k: os.environ.get(k) for k in keys}
-    for k in keys:
+    names = set(m.seo_keys.NAMES) | {"SEO_OPS_API_BASE"}
+    old = {k: os.environ.get(k) for k in names}
+    for k in names:
         os.environ.pop(k, None)
     os.environ.update({k: v for k, v in kw.items() if v is not None})
     try:
@@ -200,9 +215,17 @@ def env(**kw):
                 os.environ[k] = v
 
 
-def run(args, **kw):
+def run(args, env_keys=False, **kw):
+    """seo_index.main(args). The key names among kw go to a keys file passed with --keys; with env_keys=True
+    they go to the environment instead and no --keys is passed (the script must not read them there)."""
+    keys = {k: v for k, v in kw.items() if k in m.seo_keys.NAMES}
+    rest = {k: v for k, v in kw.items() if k not in keys}
+    if env_keys:
+        rest.update(keys)
+    elif keys:
+        args = list(args) + ["--keys", keys_file("".join("%s=%s\n" % kv for kv in keys.items()))]
     out = io.StringIO()
-    with env(**kw), contextlib.redirect_stdout(out):
+    with env(**rest), contextlib.redirect_stdout(out):
         code = m.main(args)
     return code, out.getvalue()
 
@@ -231,6 +254,34 @@ check("no keys: yandex SKIP", r.get("yandex-index", ("",))[0] == "SKIP")
 check("no keys: google SKIP", r.get("google-index", ("",))[0] == "SKIP")
 check("no keys: no API request", mock.api_calls() == [])
 check("no keys: published from the sitemap", r.get("published", ("", ""))[1].startswith("6 URLs from the sitemap"))
+check("no keys: SKIP names the keys file", "no keys file (--keys FILE)" in out)
+
+# 1b. keys come only from the keys file: the same keys in the environment are not read
+mock.reset()
+code, out = run([mock.o], env_keys=True, YANDEX_WEBMASTER_TOKEN=YTOK, GSC_ACCESS_TOKEN=DIRECT, GSC_CLIENT_ID=CID,
+                GSC_CLIENT_SECRET=CSECRET, GSC_REFRESH_TOKEN=RTOKEN, SEO_OPS_API_BASE=mock.o)
+r = rows(out)
+check("keys in the environment: not read", code == 0 and r.get("yandex-index", ("",))[0] == "SKIP"
+      and r.get("google-index", ("",))[0] == "SKIP" and "no keys file (--keys FILE)" in out)
+check("keys in the environment: no API request", mock.api_calls() == [])
+mock.reset()
+code, out = run([mock.o, "--keys", "${user_config.keys_file}"], SEO_OPS_API_BASE=mock.o)
+check("unfilled plugin option: same as no keys file", code == 0 and "no keys file (--keys FILE)" in out
+      and mock.api_calls() == [])
+mock.reset()
+code, out = run([mock.o, "--keys", os.path.join(KEYS_DIR, "missing.env")], SEO_OPS_API_BASE=mock.o)
+check("missing keys file: exit 2 before any request", code == 2 and "keys file not found" in out and mock.log == [])
+mock.reset()
+code, out = run([mock.o, "--keys", keys_file("YANDEX_TOKEN=%s\n" % YTOK)], SEO_OPS_API_BASE=mock.o)
+check("bad keys file: exit 2, value not shown", code == 2 and "line 1" in out and YTOK not in out and mock.log == [])
+mock.reset()
+code, out = run([mock.o], GSC_ACCESS_TOKEN=DIRECT, SEO_OPS_API_BASE=mock.o)
+check("keys file without the Yandex token: SKIP says so",
+      "no YANDEX_WEBMASTER_TOKEN in the keys file: Yandex Webmaster is not asked" in out)
+mock.reset()
+code, out = run([mock.o], YANDEX_WEBMASTER_TOKEN=YTOK, SEO_OPS_API_BASE=mock.o)
+check("keys file without Google keys: SKIP says so", "GSC_REFRESH_TOKEN in the keys file" in out
+      and rows(out).get("google-index", ("",))[0] == "SKIP")
 
 # 2. both engines with keys
 mock.reset()
@@ -366,6 +417,12 @@ check("GSC_PROPERTY: site list not read", not any(p.endswith("/webmasters/v3/sit
       and all(json.loads(b)["siteUrl"] == "sc-domain:example.test" for _, p, _, _, b in mock.log
               if p.endswith("index:inspect")))
 mock.reset()
+code, out = run([mock.o, "--gsc-property", "sc-domain:example.test"], GSC_ACCESS_TOKEN=DIRECT,
+                GSC_PROPERTY="https://other.test/", SEO_OPS_API_BASE=mock.o)
+inspected = [json.loads(b)["siteUrl"] for _, p, _, _, b in mock.log if p.endswith("index:inspect")]
+check("--gsc-property wins over GSC_PROPERTY", inspected and set(inspected) == {"sc-domain:example.test"}
+      and not any(p.endswith("/webmasters/v3/sites") for _, p, _, _, _ in mock.log))
+mock.reset()
 mock.cfg["sites"] = "domain"
 code, out = run([mock.o], GSC_ACCESS_TOKEN=DIRECT, SEO_OPS_API_BASE=mock.o)
 check("domain property picked", "property sc-domain:127.0.0.1" in out)
@@ -397,5 +454,6 @@ check("short values are not scrubbed", (lambda s: (s.add("ab"), s.scrub("ab"))[1
 
 mock.srv.shutdown()
 mock.srv.server_close()
+shutil.rmtree(KEYS_DIR, ignore_errors=True)
 print(json.dumps({"ok": not bad, "total": total, "bad": bad}))
 sys.exit(0 if not bad else 1)

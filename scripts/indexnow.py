@@ -15,9 +15,12 @@ Modes (pick one; default --since-hours 26):
   --url URL         the given URLs (repeatable)
 
 Usage
-  python indexnow.py --site example.com --check-key              # key from INDEXNOW_KEY or --key
-  python indexnow.py --site example.com                          # dry run: what would be sent
-  python indexnow.py --site example.com --submit --sent-log indexnow-sent.json
+  python indexnow.py --site example.com --keys keys.env --check-key   # key from --key or the keys file
+  python indexnow.py --site example.com --keys keys.env               # dry run: what would be sent
+  python indexnow.py --site example.com --keys keys.env --submit --sent-log indexnow-sent.json
+
+The key comes from --key or from INDEXNOW_KEY of the keys file named with --keys (seo_keys.py), never from
+the environment.
 
 Rules kept: only changed URLs; one URL not more often than every 10 minutes (--sent-log); at most 10,000
 URLs per POST; after 429 nothing is sent until Retry-After has passed. Exit codes: 0 sent or nothing to send,
@@ -39,7 +42,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import timezone, timedelta
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 UA = "seo-ops-indexnow/1.0 (+https://github.com/GoldenSample/seo-ops)"
 ENDPOINT = "https://api.indexnow.org/indexnow"
 MAX_BATCH = 10000
@@ -276,7 +279,9 @@ def main(argv=None, fetch=None, post=None, now=None, out=None) -> int:
 
     parser = argparse.ArgumentParser(description="Send added, changed or removed URLs to IndexNow (dry run by default).")
     parser.add_argument("--site", required=True, help="host, e.g. example.com")
-    parser.add_argument("--key", help="IndexNow key (default: INDEXNOW_KEY environment variable)")
+    parser.add_argument("--key", help="IndexNow key (else INDEXNOW_KEY of the --keys file)")
+    parser.add_argument("--keys", metavar="FILE", help="keys file (seo_keys.py) with INDEXNOW_KEY; the environment "
+                        "is not read for keys")
     parser.add_argument("--key-location", help="URL of the key file when it is not https://HOST/KEY.txt")
     parser.add_argument("--sitemap", help="sitemap URL (default https://HOST/sitemap.xml)")
     parser.add_argument("--endpoint", default=ENDPOINT, help="IndexNow endpoint (default %(default)s)")
@@ -291,9 +296,21 @@ def main(argv=None, fetch=None, post=None, now=None, out=None) -> int:
     args = parser.parse_args(argv)
 
     host = args.site.replace("http://", "").replace("https://", "").split("/")[0].lower()
-    key = args.key or os.environ.get("INDEXNOW_KEY")
+    keys = {}
+    if args.keys:
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import seo_keys  # noqa: E402  (same scripts folder)
+        try:
+            keys = seo_keys.keys_from_args(args.keys)
+        except seo_keys.KeysFileError as e:
+            print(f"error: {e}", file=out)
+            return 2
+    key = args.key or keys.get("INDEXNOW_KEY")
     if not key:
-        print("error: no IndexNow key: pass --key or set INDEXNOW_KEY (a dry run needs it too)", file=out)
+        print("error: no IndexNow key: pass --key KEY or --keys FILE with INDEXNOW_KEY (a dry run needs it too)",
+              file=out)
         return 2
     if not valid_key(key):
         print("error: the key must be 8-128 characters of letters, digits or '-'", file=out)
