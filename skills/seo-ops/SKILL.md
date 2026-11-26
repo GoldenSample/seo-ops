@@ -1,6 +1,6 @@
 ---
 name: seo-ops
-description: "SEO operations for a small site or online store across Google, Yandex and AI answers (AI Overviews, AI Mode, Alice AI, ChatGPT search, Perplexity). Splits every task into one-time at launch, recurring (daily to yearly, run by a cron job in GitHub Actions or by a person) and on events (deploy, new page, price change, traffic drop, core update, migration). Start here: routes to seo-launch, seo-calendar, seo-google, seo-yandex, seo-geo, seo-content, seo-measure, seo-local and seo-query-gaps. Every rule carries a source and a checked date. Use for: SEO plan for a new site, SEO checklist, SEO audit, what to do every week, SEO calendar, technical SEO, GEO, AI search visibility. RU triggers: SEO для нового сайта, продвижение сайта или магазина, чек-лист SEO, аудит SEO, что делать регулярно, SEO-календарь, Яндекс и Google, Алиса, нейроответы, GEO."
+description: "SEO operations for a small site or online store across Google, Yandex and AI answers (AI Overviews, AI Mode, Alice AI, ChatGPT search, Perplexity). Splits every task into one-time at launch, recurring (daily to yearly, run by a cron job in GitHub Actions or by a person) and on events (deploy, new page, price change, traffic drop, core update, migration). Start here: routes to seo-launch, seo-calendar, seo-google, seo-yandex, seo-geo, seo-semantic-core, seo-content, seo-measure, seo-local and seo-query-gaps. Every rule carries a source and a checked date. Use for: SEO plan for a new site, SEO checklist, SEO audit, what to do every week, SEO calendar, technical SEO, GEO, AI search visibility. RU triggers: SEO для нового сайта, продвижение сайта или магазина, чек-лист SEO, аудит SEO, что делать регулярно, SEO-календарь, Яндекс и Google, Алиса, нейроответы, GEO."
 license: MIT
 ---
 
@@ -12,7 +12,7 @@ This pack turns SEO into a calendar. Every task is one of three kinds:
 - **every N days**: run by a cron job (GitHub Actions) or done by a person in a dashboard;
 - **on an event**: deploy, new page, price change, traffic drop, Google core update, migration, dashboard data outage.
 
-The calendar is one JSON file, `templates/calendar.json` (58 tasks). `scripts/seo_calendar.py` turns it into the site's own calendar with dates, and four scheduled workflows run the cron part. Answer the user in their language; the skill text is English.
+The calendar is one JSON file, `templates/calendar.json` (62 tasks). `scripts/seo_calendar.py` turns it into the site's own calendar with dates, and four scheduled workflows run the cron part. Answer the user in their language; the skill text is English.
 
 Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scripts/` in a clone of the repo. Python 3.9 or newer, standard library only.
 
@@ -20,11 +20,12 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 
 | Skill | Covers |
 |---|---|
-| seo-launch | launch checklist; what `seo_check.py` checks and how to fix each result |
+| seo-launch | launch checklist; what `seo_check.py` (a sample of pages), `seo_crawl.py` (the whole site) and `seo_index.py` (pages missing from the index) check and how to fix each result |
 | seo-calendar | the calendar file, the cron jobs in GitHub Actions, the monthly issue with human tasks |
 | seo-google | Search Console, Bing Webmaster, AI features eligibility, core updates, crawler logs, Merchant Center |
 | seo-yandex | Yandex Webmaster, region, Clean-param, Yandex Products feed, IndexNow and reindexing at Yandex, outages |
 | seo-geo | AI answers: crawler policy, llms.txt, what gets cited, how to measure AI visibility |
+| seo-semantic-core | semantic core: markers, Wordstat counts (`wordstat.py`), stop list, intent, clusters by shared top-10 results (`serp_cluster.py`), one target page per cluster |
 | seo-content | product pages, guides, comparisons, listicles, AI-written text, links, pruning |
 | seo-measure | baseline, decision log, control pages, attribution, traffic drop runbook |
 | seo-local | Yandex Business, 2GIS, Google Business Profile, reviews, name, address and phone |
@@ -32,9 +33,9 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 
 ## Start on a new site
 
-1. Check the live site: `python scripts/seo_check.py example.com --pages 12` (GET and HEAD only, 2 requests per second, at most 60 requests).
+1. Check the live site: `python scripts/seo_check.py example.com --pages 12` (GET and HEAD only, 2 requests per second, at most 60 requests), then crawl it: `python scripts/seo_crawl.py example.com` (the same politeness, at most 200 URLs by default).
 2. Make the calendar: `python scripts/seo_calendar.py init --site example.com --launch 2026-12-01`, commit `seo-calendar.json`.
-3. Copy the workflows from `templates/workflows/` into the site repo `.github/workflows/`, set the `SEO_SITE` variable and, for IndexNow, the `INDEXNOW_KEY` secret (seo-calendar).
+3. Copy the workflows from `templates/workflows/` into the site repo `.github/workflows/`, set the `SEO_SITE` variable and, for IndexNow, the `INDEXNOW_KEY` secret (seo-calendar); for the index report in the monthly issue, the index secrets (seo-launch, Index coverage).
 4. Work the launch list: `python scripts/seo_calendar.py due` shows what is due; `python scripts/seo_calendar.py done <id>` closes a task.
 5. Once a month the monthly workflow opens an issue with the human tasks for the next 31 days.
 
@@ -46,6 +47,7 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 4. **Numbers from a source.** No conclusion from single-digit numbers; compare equal windows; mark dashboard outages and core updates as excluded windows.
 5. **Facts go stale.** Every fact here has a checked date. Re-read the sources every quarter (`quarterly-rules-recheck`).
 6. **No tricks.** No bought links, no keywords added to a business name, no ratings copied from other platforms, no mass pages without value. Google's spam policies and Business Profile guidelines forbid them, and Yandex counts mass pages without value as low-value content.
+7. **No keys by default.** `seo_check.py`, `seo_crawl.py`, `seo_calendar.py`, `gsc_gaps.py` and `serp_cluster.py` need no key; `indexnow.py` uses the site's IndexNow key, which the protocol makes public. `seo_index.py` and `wordstat.py` use the owner's own keys from the environment or CI secrets, never print them and send them only to the official API hosts. Yandex Cloud bills Wordstat requests to the owner's account: run `wordstat.py ... --dry-run` first, it shows the requests, the price and the time.
 
 ## Evidence levels
 

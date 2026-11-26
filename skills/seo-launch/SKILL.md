@@ -1,6 +1,6 @@
 ---
 name: seo-launch
-description: "Technical SEO launch checklist for a new site or store, and the reference for scripts/seo_check.py: one canonical host and permanent redirects, robots.txt, sitemap with honest lastmod, canonical and meta tags, structured data (Organization, WebSite, Product with Offer, BreadcrumbList), 404 and 5xx behaviour, images, caching, HTTPS expiry, security.txt, Core Web Vitals. Every step has a check that can fail. Recurring part: weekly external audit, monthly structured data spot check, quarterly crawl, yearly security.txt and trust page review. Events: deploy, redesign or domain move. Use when launching, migrating or auditing a site, or when seo_check.py reports FAIL or WARN. RU triggers: запуск сайта, технический аудит SEO, чек-лист запуска, robots.txt, sitemap, canonical, микроразметка, редиректы, 404, переезд сайта, что проверить перед запуском."
+description: "Technical SEO launch checklist for a new site or store, and the reference for scripts/seo_check.py (sampled live-site check), scripts/seo_crawl.py (crawl of the whole site, no keys: broken links, redirects, sitemap gaps, orphans, canonical, noindex, titles, H1) and scripts/seo_index.py (published pages missing from the Yandex and Google index, with the owner's keys): canonical host and redirects, robots.txt, sitemap, canonical and meta tags, structured data, 404 and 5xx, images, caching, HTTPS, security.txt, Core Web Vitals. Every step has a check that can fail. Recurring: weekly audit and crawl, monthly index coverage and schema spot check, quarterly deep crawl. Events: deploy, redesign or domain move. Use when launching, migrating or auditing a site, or when a script reports FAIL or WARN. RU triggers: запуск сайта, технический аудит, чек-лист запуска, robots.txt, sitemap, canonical, редиректы, 404, переезд сайта, обход сайта, битые ссылки, страницы-сироты, страницы не в индексе."
 license: MIT
 ---
 
@@ -28,7 +28,7 @@ Launch day (`offset_days` 0 in the calendar):
 12. `launch-indexnow`: a key file at `/<key>.txt` and the key in a CI secret. Checks: indexnow-key (`--indexnow-key KEY` or the `INDEXNOW_KEY` variable), `python scripts/indexnow.py --site example.com --check-key`.
 13. `launch-final-check`: `python scripts/seo_check.py example.com --pages 20` exits 0; each WARN is fixed or written down as a decision.
 
-Follow-up: `launch-indexing-d14`, two weeks later: compare sitemap URLs with indexed pages in Search Console and Yandex Webmaster. A page that is crawled but not indexed needs better content or internal links, not daily resubmission.
+Follow-up: `launch-indexing-d14`, two weeks later: which sitemap URLs are indexed. `python scripts/seo_index.py example.com` lists the missing ones with the reason when the owner's keys are set (Index coverage below); without keys, compare in Search Console and Yandex Webmaster by hand. A page that is crawled but not indexed needs better content or internal links, not daily resubmission.
 
 Dashboards, analytics, business profiles and feeds have their own skills: seo-google, seo-yandex, seo-measure, seo-local.
 
@@ -71,18 +71,68 @@ FAIL breaks crawling, indexing or rich results. WARN loses value or puts it at r
 
 Politeness: at most 2 requests per second and 60 per run (`--max-requests`), an honest User-Agent, no redirects followed. `--resolve host=IP` checks a server before the DNS switch.
 
+## Crawling the whole site: seo_crawl.py
+
+`seo_check.py` samples a dozen pages; `seo_crawl.py` walks the site with no keys: robots.txt first, then every internal link from the home page, then the sitemap URLs that no link reached. GET and HEAD only, at most 2 requests per second, at most `--max-pages` URLs (default 200) and `--max-seconds` (default 600).
+
+```
+python scripts/seo_crawl.py example.com --max-pages 500 --md crawl.md --json crawl-2026-12-01.json
+python scripts/seo_crawl.py example.com --max-pages 500 --compare crawl-2026-12-01.json
+```
+
+| Check | FAIL or WARN means | Fix |
+|---|---|---|
+| crawl-coverage | robots.txt answers 5xx, 429 or nothing, or the home page is closed, redirects to another host or answers 4xx (FAIL); the server kept answering 429 (WARN) | fix robots.txt or the home page; let the crawler through the rate limit or crawl with `--delay 2` |
+| broken-links | internal links to 4xx pages, with the pages that link to them (FAIL); to 401 or 403 (WARN) | fix the link, or redirect the old URL to the closest page |
+| server-errors | 5xx (FAIL); 429 or no answer (WARN: those URLs were not checked) | read the server log for those URLs |
+| redirect-links | links that point to a redirect (WARN) | link to the final URL |
+| redirect-chains | a loop, a redirect without Location or one that ends in an error (FAIL); two or more hops (WARN) | one hop to the final URL |
+| sitemap-errors | a sitemap URL that is not 200, has noindex or a canonical to another URL (FAIL); closed by robots.txt or on another host (WARN) | list only canonical indexable 200 URLs |
+| not-in-sitemap | indexable pages that links reach but the sitemap does not list (WARN) | add them, or noindex them if they should not rank |
+| orphans | sitemap URLs that no chain of links from the home page reaches (WARN; needs a complete crawl) | link them from a category or hub page, or drop them from the sitemap |
+| canonical | a canonical to another host, to a redirect, an error or a noindex page (WARN); relative canonicals (INFO) | an absolute canonical to the right indexable URL |
+| titles | a page without a title (FAIL); one title on several pages (WARN) | one unique title per page |
+| h1 | no h1, an empty h1, or one h1 text on several pages (WARN); several h1 (INFO) | one h1 with the page subject |
+| mixed-host-links | links to the other scheme or www form of the host (WARN): each costs a redirect | link to the canonical form |
+| noindex, robots-blocked, query-urls, depth | INFO | check that each noindex and each closed section is meant; links with a query string are crawled only with `--include-query`; depth counts clicks from the home page |
+| crawl-diff | with `--compare`: new errors, lost pages and changed titles since an earlier crawl JSON | read every new line |
+
+A 429 or 503 makes the crawler wait (Retry-After, else 10 s doubling) and slow down; URLs it could not fetch count as not checked, not as errors of the site. Exit codes: 0 no FAIL, 1 FAIL (or WARN with `--fail-on warn`), 2 the site did not answer.
+
+## Index coverage: seo_index.py
+
+Which published pages each engine has not indexed, and the reason it gives. Published pages are the sitemap URLs, or with `--pages crawl.json` the indexable 200 pages of a crawl. The keys are the owner's own, from the environment or CI secrets; the pack has none, and without a key that engine's line is SKIP.
+
+```
+python scripts/seo_index.py example.com --md index.md --json index.json
+python scripts/seo_index.py example.com --pages crawl-2026-12-01.json --google-max 300
+```
+
+- **Yandex**: create an app at https://oauth.yandex.ru/client/new with the Webmaster rights (`webmaster:hostinfo`, `webmaster:verify`), then open `https://oauth.yandex.ru/authorize?response_type=token&client_id=<id>` and put the token into `YANDEX_WEBMASTER_TOKEN`. It lives 6 months (Official: https://yandex.ru/dev/webmaster/doc/ru/tasks/how-to-get-oauth , checked 2026-11-26). The script reads the pages in search, the search events (appeared, removed, with the reason) and the robot's crawl samples.
+- **Google**: an OAuth client in a Google Cloud project with the Search Console API enabled; authorize once with `access_type=offline` and the scope `https://www.googleapis.com/auth/webmasters.readonly`, then set `GSC_CLIENT_ID`, `GSC_CLIENT_SECRET` and `GSC_REFRESH_TOKEN` (Official: https://developers.google.com/identity/protocols/oauth2/web-server , checked 2026-11-26). While the consent screen of an external app is in the Testing status, Google issues refresh tokens that expire after seven days, and a refresh token unused for six months stops working (Official: https://developers.google.com/identity/protocols/oauth2 , checked 2026-11-26): for the monthly cron, publish the app first. `GSC_PROPERTY` names the property (`https://example.com/` or `sc-domain:example.com`); without it the account's site list is searched. URL Inspection runs for up to `--google-max` URLs (default 100); Google allows 2000 a day and 600 a minute per site (Official: https://developers.google.com/webmaster-tools/limits , checked 2026-11-26).
+- Token values never reach the output: every line, the JSON and the Markdown pass a filter that replaces them with `***`, and a token goes only to the official API hosts.
+
+| Line | Meaning |
+|---|---|
+| yandex-index, google-index | FAIL: a key refused, the site not in the account or not verified. WARN: published pages missing from the index, each with the reason (Webmaster event status such as `NOT_CANONICAL`, `DUPLICATE`, `LOW_QUALITY`, `NO_INDEX`, `HTTP_ERROR`, or the last crawl; Google's coverage state and fetch state) |
+| yandex-extra | INFO: pages in Yandex search that the site does not publish (old URLs, parameters, duplicates): redirect them or close them |
+
+Reasons decide the fix: a technical one (noindex, canonical elsewhere, redirect, error) goes back to the crawl report; a duplicate or low-quality one needs better or merged content and internal links; a page that is not crawled yet needs links from crawled pages and, for Yandex, IndexNow. Resubmitting the same URLs every day fixes none of them.
+
 ## Recurring
 
 - `weekly-audit` (cron): the weekly workflow runs `seo_check.py --pages 12`; read new WARN lines.
+- `weekly-crawl` (cron): the same workflow then runs `seo_crawl.py` over the whole site (input `crawl_pages`, default 200 URLs, 0 turns it off); a FAIL fails the run.
+- `monthly-index-coverage`: with the index secrets the monthly workflow runs `seo_index.py` and puts the report into the monthly issue; without them run it locally with the owner's keys, or compare by hand in Search Console and Yandex Webmaster.
 - `monthly-schema-spotcheck`: Rich Results Test on 5 to 10 product pages; product snippet and merchant listing reports in Search Console; the Yandex validator. No errors in price and availability.
-- `quarterly-crawl`: a full crawl with a desktop crawler; compare with the last crawl to catch template regressions.
+- `quarterly-crawl`: a deep crawl, `python scripts/seo_crawl.py example.com --max-pages 2000 --max-seconds 0 --json crawl-<date>.json --compare <last crawl JSON>`, or a desktop crawler; compare with the last crawl to catch template regressions.
 - `yearly-security-txt`: move the Expires date of security.txt.
 - `yearly-trust-review`: review the trust pages and seller details.
 
 ## Events
 
 - `event-deploy` (cron): the on-deploy workflow runs `seo_check.py` on the live site, then IndexNow for changed URLs.
-- `event-migration` (redesign or domain move): a redirect map for every old URL, a crawl before and after, then 4 to 8 weeks of watching indexing. After the move no old URL answers 404.
+- `event-migration` (redesign or domain move): a redirect map for every old URL; `seo_crawl.py --json before.json` before the move and `--compare before.json` after it. The crawl-diff line lists old pages that answer an error now (lost) and old pages that no link or sitemap reaches any more (not met); the crawler does not request those, so request each and check that it redirects to its new page. Then 4 to 8 weeks of watching indexing with `seo_index.py`. After the move no old URL answers 404.
 
 ## Sources (checked 2026-11-25)
 
@@ -94,3 +144,10 @@ Politeness: at most 2 requests per second and 60 per run (`--max-requests`), an 
 - Yandex, Clean-param is cross-section and can stand anywhere in robots.txt: https://yandex.ru/support/webmaster/ru/robot-workings/clean-param (Official)
 - Core Web Vitals thresholds: https://web.dev/articles/vitals (Official)
 - security.txt: https://www.rfc-editor.org/rfc/rfc9116 (standard)
+- Robots Exclusion Protocol: a robots.txt that answers 5xx or cannot be reached means complete disallow for the crawler: https://www.rfc-editor.org/rfc/rfc9309 (standard)
+
+## Sources for the crawl and index tools (checked 2026-11-26)
+
+- Yandex Webmaster API v4: pages in search, search events with the exclusion status, crawl samples, errors and quotas: https://yandex.ru/dev/webmaster/doc/ru/reference/hosts-indexing-insearch-samples , https://yandex.ru/dev/webmaster/doc/ru/reference/hosts-search-events-samples , https://yandex.ru/dev/webmaster/doc/ru/reference/hosts-indexing-samples , https://yandex.ru/dev/webmaster/doc/ru/reference/errors (Official)
+- Search Console URL Inspection: only the version in the Google index is shown: https://developers.google.com/webmaster-tools/v1/urlInspection.index/inspect (Official)
+- Google OAuth 2.0: refresh tokens, the seven-day expiry in the Testing status: https://developers.google.com/identity/protocols/oauth2 (Official)

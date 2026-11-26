@@ -1,6 +1,6 @@
 ---
 name: seo-calendar
-description: "The SEO calendar of one site and its cron jobs: templates/calendar.json (one-time launch tasks, recurring tasks every 1 to 365 days, event tasks), scripts/seo_calendar.py (init, due, done, skip, track, validate) and scheduled GitHub Actions workflows: daily health check and IndexNow, weekly external audit, monthly issue with the human tasks for the next 31 days, check after every deploy. Use when setting up recurring SEO for a site, asking what is due this week, marking SEO tasks done or not applicable, adding a task, or wiring SEO checks into CI, cron or GitHub Actions. RU triggers: SEO-календарь, регулярные задачи SEO, что сделать на этой неделе, расписание SEO, крон, GitHub Actions, автопроверка сайта, напоминания SEO, ежедневная проверка сайта."
+description: "The SEO calendar of one site and its cron jobs: templates/calendar.json (one-time launch tasks, recurring tasks every 1 to 365 days, event tasks), scripts/seo_calendar.py (init, due, done, skip, track, validate) and scheduled GitHub Actions workflows: daily health check and IndexNow, weekly external audit and site crawl, monthly issue with the human tasks for the next 31 days (with the index coverage report when the owner's keys are set), check after every deploy. Use when setting up recurring SEO for a site, asking what is due this week, marking SEO tasks done or not applicable, adding a task, or wiring SEO checks into CI, cron or GitHub Actions. RU triggers: SEO-календарь, регулярные задачи SEO, что сделать на этой неделе, расписание SEO, крон, GitHub Actions, автопроверка сайта, напоминания SEO, ежедневная проверка сайта."
 license: MIT
 ---
 
@@ -10,7 +10,7 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 
 ## The calendar file
 
-`templates/calendar.json` (schema `seo-ops-calendar/1`) has 58 tasks. Each task:
+`templates/calendar.json` (schema `seo-ops-calendar/1`) has 62 tasks. Each task:
 
 | Field | Meaning |
 |---|---|
@@ -27,11 +27,11 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 2. `python scripts/seo_calendar.py validate` must print `ok`.
 3. Copy the workflows from `templates/workflows/` to the site repo `.github/workflows/`:
    - `seo-daily.yml`: health check of home, robots.txt, sitemap and 3 sampled pages; IndexNow for URLs whose lastmod changed in the last 26 hours.
-   - `seo-weekly.yml`: full check with 12 pages; the report goes to the run summary.
-   - `seo-monthly.yml`: opens one issue with the human tasks due in the next 31 days.
+   - `seo-weekly.yml`: full check with 12 pages, then `seo_crawl.py` over the whole site (input `crawl_pages`, default 200 URLs, `0` turns the crawl off; at most 540 seconds); the reports go to the run summary, and a crawl FAIL fails the run like a check FAIL.
+   - `seo-monthly.yml`: opens one issue with the human tasks due in the next 31 days. With the index secrets it first runs `seo_index.py` and adds its report to the issue (inputs `index`: `on` or `off`, `gsc_property`, `google_max`); without them that step is skipped.
    - `seo-on-deploy.yml`: check and IndexNow after a deploy. Start it from your deploy workflow, from a deploy script with a `repository_dispatch` event of type `seo-deploy`, or by hand; the file header shows all three.
    They call the reusable workflow `GoldenSample/seo-ops/.github/workflows/seo-cron.yml@v1`.
-4. In the repo settings: variable `SEO_SITE` = the canonical host (e.g. `example.com`); secret `INDEXNOW_KEY` if you use IndexNow (seo-yandex). With the secret, every check also checks the key file `https://SITE/KEY.txt`, and the daily and deploy runs send changed URLs. If another tool already sends IndexNow, add `indexnow: check` under `with:` (key file only); `indexnow: off` ignores the secret. Without the secret both are skipped.
+4. In the repo settings: variable `SEO_SITE` = the canonical host (e.g. `example.com`); secret `INDEXNOW_KEY` if you use IndexNow (seo-yandex). With the secret, every check also checks the key file `https://SITE/KEY.txt`, and the daily and deploy runs send changed URLs. If another tool already sends IndexNow, add `indexnow: check` under `with:` (key file only); `indexnow: off` ignores the secret. Without the secret both are skipped. For the index report in the monthly issue, add the secrets `YANDEX_WEBMASTER_TOKEN` and, for Google, `GSC_CLIENT_ID`, `GSC_CLIENT_SECRET` and `GSC_REFRESH_TOKEN`, then uncomment the `secrets:` block of `seo-monthly.yml` (how to get them: seo-launch, Index coverage). They reach only the index step. A refused key or an index step that gets no answer fails the monthly run; the issue is opened first.
 5. `launch-uptime`: an uptime monitor with an alert after two failures in a row. The daily job sees a dead site once a day; an uptime service sees it in minutes.
 6. Watch the first scheduled runs in the Actions tab: they must be green. A red run means a FAIL on the site or a site that did not answer; the job summary says which.
 
@@ -43,7 +43,9 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 | daily-indexnow | 1 day | cron | `indexnow.py --since-hours 26 --submit` |
 | daily-console-alerts | 1 day | human | read Search Console, Yandex Webmaster and Bing messages |
 | weekly-audit | 7 days | cron | `seo_check.py --pages 12` |
+| weekly-crawl | 7 days | cron | `seo_crawl.py --max-pages 200 --max-seconds 540` (input `crawl_pages`) |
 | monthly-calendar-issue | 30 days | cron | `seo_calendar.py due --who human --within 31 --format md` as an issue |
+| monthly-index-coverage | 30 days | human; cron with the index secrets | `seo_index.py`, its report in the monthly issue |
 
 The other recurring tasks (weekly, monthly, quarterly, yearly) are `human` and arrive in the monthly issue.
 

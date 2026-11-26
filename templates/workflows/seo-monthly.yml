@@ -2,6 +2,9 @@
 # Needs: repository variable SEO_SITE and the site calendar seo-calendar.json in the repository root
 #   (python scripts/seo_calendar.py init --site example.com --launch YYYY-MM-DD, then commit the file).
 # Opens one issue with the human tasks due in the next 31 days. Calendar task: monthly-calendar-issue.
+# Optional: with the index secrets (uncomment the secrets block and add them in Settings, Secrets and variables,
+# Actions), the issue also lists the published pages missing from the Yandex and Google index, with the reason.
+# Calendar task: monthly-index-coverage. How to get the keys: skills/seo-launch/SKILL.md, "Index coverage".
 name: seo-monthly
 
 on:
@@ -20,3 +23,10 @@ jobs:
       site: ${{ vars.SEO_SITE }}
       mode: monthly
       calendar: seo-calendar.json
+      # gsc_property: sc-domain:example.com   # Search Console property; empty = found in the account's site list
+      # google_max: 100                       # URL Inspection requests per run (Google allows 2000 a day per site)
+    # secrets:
+    #   YANDEX_WEBMASTER_TOKEN: ${{ secrets.YANDEX_WEBMASTER_TOKEN }}
+    #   GSC_CLIENT_ID: ${{ secrets.GSC_CLIENT_ID }}
+    #   GSC_CLIENT_SECRET: ${{ secrets.GSC_CLIENT_SECRET }}
+    #   GSC_REFRESH_TOKEN: ${{ secrets.GSC_REFRESH_TOKEN }}

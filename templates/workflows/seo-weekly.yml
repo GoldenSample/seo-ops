@@ -1,7 +1,7 @@
 # Copy to .github/workflows/seo-weekly.yml in your site repository.
 # Needs: repository variable SEO_SITE; optional secret INDEXNOW_KEY (the check then also checks the key file).
-# The report is in the job summary of each run.
-# Calendar task: weekly-audit.
+# Runs seo_check.py, then seo_crawl.py over the whole site (200 URLs by default, no keys). Both reports are in
+# the job summary of each run. Calendar tasks: weekly-audit, weekly-crawl.
 name: seo-weekly
 
 on:
@@ -19,5 +19,6 @@ jobs:
       site: ${{ vars.SEO_SITE }}
       mode: weekly
       # indexnow: off      # with the secret, the check also checks https://SITE/KEY.txt; off skips that
+      # crawl_pages: 0     # URLs the weekly crawl fetches at most (default 200); 0 turns the crawl off
     secrets:
       INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}

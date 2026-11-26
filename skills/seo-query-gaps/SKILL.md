@@ -12,7 +12,7 @@ The idea: a search engine already shows the site for some queries that no page r
 
 ## One-time (new site)
 
-Nothing on launch day: a new site has no query data yet. The calendar template starts `monthly-query-gaps` 90 days after launch (`offset_days: 90`), when the exports hold about three months. Until then, plan pages from a keyword tool and from the questions buyers ask.
+Nothing on launch day: a new site has no query data yet. The calendar template starts `monthly-query-gaps` 90 days after launch (`offset_days: 90`), when the exports hold about three months. Until then, plan pages from the semantic core (seo-semantic-core) and from the questions buyers ask.
 
 ## Recurring: monthly-query-gaps (every 30 days)
 
@@ -37,14 +37,14 @@ Flags: `--min-impressions` (default 10), `--gap-threshold` (default 0.6), `--top
 
 The match is word overlap after simple stemming, with Cyrillic words also tried in Latin transliteration (so `/motogarnitury/` matches "мотогарнитуры"). It cannot see meaning: synonyms and word order fool it. It sorts; you decide.
 
-5. **Decide with Claude.** Give Claude the Markdown and the list of existing pages. For each gap ask: is it one intent or several, does an existing page already answer it (then add a section or an internal link instead of a new page), is it something the business sells or can answer from experience, is it worth a page at its impressions. Merge queries with one intent into one page.
-6. **Write tasks, not pages.** Each accepted topic gets a demand note in the decision log (query cluster, impressions and positions with the export date, the page type) and goes through seo-content. After publishing: `python scripts/seo_calendar.py track <url> --on <publish date>` adds review tasks at 7, 21 and 90 days.
+5. **Decide with Claude.** Give Claude the Markdown and the list of existing pages. For each gap ask: is it one intent or several, does an existing page already answer it (then add a section or an internal link instead of a new page), is it something the business sells or can answer from experience, is it worth a page at its impressions. Merge queries with one intent into one page. When it is unclear whether two queries are one intent, compare their top-10 results: `scripts/serp_cluster.py` puts queries that share at least 3 result URLs into one cluster (seo-semantic-core).
+6. **Write tasks, not pages.** Each accepted topic gets a demand note in the decision log (query cluster, impressions and positions with the export date, the page type) and goes through seo-content. After publishing: `python scripts/seo_calendar.py track <url> --on <publish date>` adds review tasks at 7, 21 and 90 days. Accepted gaps also go into the semantic core: `quarterly-semantic-refresh` (seo-semantic-core) clusters them with the rest, so a gap that joins an existing cluster goes to that cluster's page.
 
 ## What the export does not show
 
 - Anonymized queries are left out of query data, even in the bulk export (Official: https://support.google.com/webmasters/answer/12918484 , checked 2026-11-25). So the query rows add up to less than the site totals.
 - The help pages state no row limit for the interface export. For complete data Google offers a scheduled daily bulk export to BigQuery (Official, same page). For a small site the interface export is usually enough (Practice).
-- Impressions are not demand in full: a query where the site is not shown at all never appears. Use a keyword tool (Wordstat, Keyword Planner) for demand the site does not touch yet.
+- Impressions are not demand in full: a query where the site is not shown at all never appears. For demand the site does not touch yet, use Wordstat (`scripts/wordstat.py` with the owner's Yandex Cloud key, or the Wordstat site) or Keyword Planner (seo-semantic-core).
 - Brand and navigational queries show up as gaps when no page title holds the brand; skip them.
 
 ## Events

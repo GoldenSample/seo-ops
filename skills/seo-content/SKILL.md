@@ -21,7 +21,7 @@ Scripts: `${CLAUDE_SKILL_DIR}/../../scripts/` when installed as a plugin, `scrip
 
 1. Product pages first. Own description, not the supplier text. Specifications only from the manufacturer's official pages; where data is missing, write "unknown", do not guess. Price, availability, delivery and returns on the page. Real photos where you have them.
 2. Instructions and FAQ inside the product page (or one click away from it): setup steps, compatibility, common problems. A translated manual as an HTML page linked from the product answers "manual for <model>" searches (Practice: not measured yet).
-3. One guide for the main buying question ("how to choose X"), chosen by measured demand (seo-query-gaps, a keyword tool). AI answers in both engines cite guides and comparisons more than product pages (seo-geo).
+3. One guide for the main buying question ("how to choose X"), chosen by measured demand (seo-query-gaps, seo-semantic-core). AI answers in both engines cite guides and comparisons more than product pages (seo-geo).
 4. Trust pages and seller details (seo-launch, `launch-trust-pages`).
 
 ## Recurring

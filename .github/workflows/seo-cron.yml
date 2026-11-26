@@ -1,12 +1,18 @@
 # Reusable SEO cron for one site. Call it from your site repository; templates are in templates/workflows/.
 # Modes:
 #   daily    seo_check.py with 3 pages, then IndexNow for URLs whose sitemap lastmod changed in the last 26 hours
-#   weekly   seo_check.py with 12 pages, report in the job summary
-#   monthly  one issue with the human calendar tasks due in the next 31 days (needs issues: write)
+#   weekly   seo_check.py with 12 pages, then seo_crawl.py over the whole site (crawl_pages URLs, default 200,
+#            0 = off): broken links, redirects, sitemap, orphans, canonical, noindex, titles, H1; both reports in
+#            the job summary
+#   monthly  one issue with the human calendar tasks due in the next 31 days (needs issues: write); with the index
+#            secrets, seo_index.py adds the published pages missing from the Yandex and Google index, with reasons
 #   deploy   seo_check.py with 8 pages, then IndexNow for the last 3 hours
 # With the INDEXNOW_KEY secret, every check mode also checks the key file https://SITE/KEY.txt, and daily and deploy
 # send changed URLs to IndexNow. Input indexnow: submit (default) does both; check only checks the key file (when
-# another tool sends); off ignores the secret. The job fails when seo_check.py finds a FAIL.
+# another tool sends); off ignores the secret.
+# Index secrets (optional, monthly only, passed to that one step): YANDEX_WEBMASTER_TOKEN for Yandex Webmaster;
+# GSC_CLIENT_ID, GSC_CLIENT_SECRET and GSC_REFRESH_TOKEN for Search Console. Without them the index step is skipped.
+# The job fails when seo_check.py or seo_crawl.py finds a FAIL, or when seo_index.py cannot use a key it was given.
 name: seo-cron
 
 on:
@@ -40,6 +46,22 @@ on:
         description: "With the INDEXNOW_KEY secret: submit (check the key file, send changed URLs), check (key file only) or off"
         type: string
         default: "submit"
+      crawl_pages:
+        description: "Weekly mode: URLs the site crawl fetches at most (seo_crawl.py); 0 turns the crawl off"
+        type: number
+        default: 200
+      index:
+        description: "Monthly mode: on runs seo_index.py when index secrets are set; off skips it"
+        type: string
+        default: "on"
+      gsc_property:
+        description: "Monthly index step: Search Console property (https://example.com/ or sc-domain:example.com); empty = found in the account"
+        type: string
+        default: ""
+      google_max:
+        description: "Monthly index step: URL Inspection requests at most (Google allows 2000 a day per site)"
+        type: number
+        default: 100
       tools_ref:
         description: "seo-ops tag or branch to run; keep it equal to the @ref you call this workflow with"
         type: string
@@ -47,11 +69,19 @@ on:
     secrets:
       INDEXNOW_KEY:
         required: false
+      YANDEX_WEBMASTER_TOKEN:
+        required: false
+      GSC_CLIENT_ID:
+        required: false
+      GSC_CLIENT_SECRET:
+        required: false
+      GSC_REFRESH_TOKEN:
+        required: false
 
 jobs:
   seo:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       SITE: ${{ inputs.site }}
       MODE: ${{ inputs.mode }}
@@ -60,6 +90,9 @@ jobs:
       CALENDAR: ${{ inputs.calendar }}
       FAIL_ON: ${{ inputs.fail_on }}
       INDEXNOW_MODE: ${{ inputs.indexnow }}
+      CRAWL_PAGES: ${{ inputs.crawl_pages }}
+      INDEX_MODE: ${{ inputs.index }}
+      GOOGLE_MAX: ${{ inputs.google_max }}
     steps:
       - name: Validate inputs
         run: |
@@ -67,6 +100,9 @@ jobs:
           if [ -z "$SITE" ]; then echo "::error::site is empty: set the repository variable SEO_SITE (Settings, Secrets and variables, Actions, Variables)"; exit 1; fi
           case "$FAIL_ON" in fail|warn) ;; *) echo "::error::fail_on must be fail or warn"; exit 1;; esac
           case "$INDEXNOW_MODE" in submit|check|off) ;; *) echo "::error::indexnow must be submit, check or off, got '$INDEXNOW_MODE'"; exit 1;; esac
+          case "$CRAWL_PAGES" in ''|*[!0-9]*) echo "::error::crawl_pages must be a whole number, 0 or more, got '$CRAWL_PAGES'"; exit 1;; esac
+          case "$INDEX_MODE" in on|off) ;; *) echo "::error::index must be on or off, got '$INDEX_MODE'"; exit 1;; esac
+          case "$GOOGLE_MAX" in ''|*[!0-9]*) echo "::error::google_max must be a whole number, 0 or more, got '$GOOGLE_MAX'"; exit 1;; esac
           pages="$PAGES_IN"; since="$SINCE_IN"
           if [ "$pages" = "0" ]; then case "$MODE" in daily) pages=3;; weekly) pages=12;; *) pages=8;; esac; fi
           if [ "$since" = "0" ]; then case "$MODE" in deploy) since=3;; *) since=26;; esac; fi
@@ -103,6 +139,17 @@ jobs:
           if [ -f seo-check.md ]; then cat seo-check.md >> "$GITHUB_STEP_SUMMARY"; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
+      - name: Site crawl
+        id: crawl
+        if: inputs.mode == 'weekly' && inputs.crawl_pages > 0 && steps.check.outputs.code != '2'
+        run: |
+          set +e
+          python3 .seo-ops/scripts/seo_crawl.py "$SITE" --max-pages "$CRAWL_PAGES" --max-seconds 540 --md seo-crawl.md --json seo-crawl.json --fail-on "$FAIL_ON"
+          code=$?
+          set -e
+          if [ -f seo-crawl.md ]; then cat seo-crawl.md >> "$GITHUB_STEP_SUMMARY"; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
       - name: IndexNow
         if: (inputs.mode == 'daily' || inputs.mode == 'deploy') && inputs.indexnow == 'submit' && steps.check.outputs.code != '2'
         env:
@@ -111,19 +158,60 @@ jobs:
           if [ -z "$INDEXNOW_KEY" ]; then echo "No INDEXNOW_KEY secret: IndexNow skipped."; exit 0; fi
           python3 .seo-ops/scripts/indexnow.py --site "$SITE" --since-hours "$SINCE_HOURS" --submit
 
+      - name: Index coverage
+        id: index
+        if: inputs.mode == 'monthly' && inputs.index == 'on'
+        env:
+          YANDEX_WEBMASTER_TOKEN: ${{ secrets.YANDEX_WEBMASTER_TOKEN }}
+          GSC_CLIENT_ID: ${{ secrets.GSC_CLIENT_ID }}
+          GSC_CLIENT_SECRET: ${{ secrets.GSC_CLIENT_SECRET }}
+          GSC_REFRESH_TOKEN: ${{ secrets.GSC_REFRESH_TOKEN }}
+          GSC_PROPERTY: ${{ inputs.gsc_property }}
+        run: |
+          if [ -z "$YANDEX_WEBMASTER_TOKEN$GSC_CLIENT_ID$GSC_CLIENT_SECRET$GSC_REFRESH_TOKEN" ]; then
+            echo "No index secrets (YANDEX_WEBMASTER_TOKEN; GSC_CLIENT_ID, GSC_CLIENT_SECRET, GSC_REFRESH_TOKEN): index coverage skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "$GSC_PROPERTY" ]; then unset GSC_PROPERTY; fi
+          set +e
+          python3 .seo-ops/scripts/seo_index.py "$SITE" --google-max "$GOOGLE_MAX" --md seo-index.md --json seo-index.json
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
       - name: Calendar issue
         if: inputs.mode == 'monthly'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 .seo-ops/scripts/seo_calendar.py due --calendar "site/$CALENDAR" --who human --within 31 --format md > due.md
+          if [ -f seo-index.md ]; then { printf '\n'; cat seo-index.md; } >> due.md; fi
           cat due.md >> "$GITHUB_STEP_SUMMARY"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "SEO tasks for the next 31 days ($(date -u +%Y-%m-%d))" --body-file due.md
+          if [ "$(wc -c < due.md)" -gt 60000 ]; then
+            python3 -c "b = open('due.md', 'rb').read()[:60000]; open('body.md', 'wb').write(b.decode('utf-8', 'ignore').encode('utf-8'))"
+            printf '\n\n(Cut at 60000 bytes: the full report is in the job summary of run %s.)\n' "$GITHUB_RUN_ID" >> body.md
+          else
+            cp due.md body.md
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "SEO tasks for the next 31 days ($(date -u +%Y-%m-%d))" --body-file body.md
+
+      - name: Index result
+        if: inputs.mode == 'monthly' && steps.index.outputs.code != ''
+        env:
+          CODE: ${{ steps.index.outputs.code }}
+        run: |
+          if [ "$CODE" != "0" ]; then echo "::error::seo_index.py exit code $CODE (1 = a key refused or the site not in the account, 2 = no answer or no published pages): read the job summary."; exit 1; fi
+          echo "seo_index.py: no FAIL."
 
       - name: Result
         if: inputs.mode != 'monthly'
         env:
           CODE: ${{ steps.check.outputs.code }}
+          CRAWL_CODE: ${{ steps.crawl.outputs.code }}
         run: |
-          if [ "$CODE" != "0" ]; then echo "::error::seo_check.py exit code $CODE (1 = FAIL found, 2 = site unreachable): read the job summary."; exit 1; fi
+          bad=0
+          if [ "$CODE" != "0" ]; then echo "::error::seo_check.py exit code $CODE (1 = FAIL found, 2 = site unreachable): read the job summary."; bad=1; fi
+          if [ -n "$CRAWL_CODE" ] && [ "$CRAWL_CODE" != "0" ]; then echo "::error::seo_crawl.py exit code $CRAWL_CODE (1 = FAIL found, 2 = site unreachable): read the job summary."; bad=1; fi
+          if [ "$bad" = "1" ]; then exit 1; fi
           echo "seo_check.py: no FAIL."
+          if [ -n "$CRAWL_CODE" ]; then echo "seo_crawl.py: no FAIL."; fi

@@ -38,6 +38,14 @@ jobs:
         run: python3 --version
       - name: seo_check.py self-test (planted defects)
         run: python3 -W error scripts/seo_check.py --selftest
+      - name: seo_crawl.py self-test (planted defects and a clean control site)
+        run: python3 -W error scripts/seo_crawl.py --selftest
+      - name: index coverage (mock Webmaster and Search Console APIs)
+        run: python3 -W error tests/test_index.py scripts/seo_index.py
+      - name: Wordstat (mock API)
+        run: python3 -W error tests/test_wordstat.py scripts/wordstat.py
+      - name: SERP clusters
+        run: python3 -W error tests/test_cluster.py scripts/serp_cluster.py
       - name: robots.txt matching
         run: python3 -W error tests/test_robots.py scripts/seo_check.py
       - name: calendar

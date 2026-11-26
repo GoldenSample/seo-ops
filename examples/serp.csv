@@ -1,0 +1,141 @@
+phrase,position,url
+green tea,1,https://teawiki.example/wiki/Green_tea
+green tea,2,https://leafmarket.example/green-tea/
+green tea,3,https://example.com/green-tea/
+green tea,4,https://health.example/green-tea-benefits/
+green tea,5,https://teahouse.example/collections/green/
+green tea,6,https://marketplace.example/c/green-tea
+green tea,7,https://news.example/food/green-tea-guide/
+green tea,8,https://brewguide.example/green-tea/
+green tea,9,https://shop2.example/green-tea/
+green tea,10,https://forum.example/t/green-tea
+matcha powder,1,https://leafmarket.example/matcha/
+matcha powder,2,https://teawiki.example/wiki/Matcha
+matcha powder,3,https://teahouse.example/collections/matcha/
+matcha powder,4,https://marketplace.example/c/matcha
+matcha powder,5,https://health.example/matcha-benefits/
+matcha powder,6,https://shop2.example/matcha/
+matcha powder,7,https://example.com/green-tea/
+matcha powder,8,https://brewguide.example/matcha/how-to-make/
+matcha powder,9,https://bigstore.example/grocery/tea/matcha/
+matcha powder,10,https://matchabrand.example/
+oolong tea,1,https://teawiki.example/wiki/Oolong
+oolong tea,2,https://leafmarket.example/oolong/
+oolong tea,3,https://teahouse.example/collections/oolong/
+oolong tea,4,https://example.com/oolong/
+oolong tea,5,https://health.example/oolong-benefits/
+oolong tea,6,https://marketplace.example/c/oolong
+oolong tea,7,https://brewguide.example/oolong/
+oolong tea,8,https://shop2.example/oolong/
+oolong tea,9,https://news.example/food/oolong-explained/
+oolong tea,10,https://forum.example/t/oolong
+cast iron teapot,1,https://kitchenstore.example/teapots/cast-iron/
+cast iron teapot,2,https://teawiki.example/wiki/Tetsubin
+cast iron teapot,3,https://leafmarket.example/teaware/cast-iron/
+cast iron teapot,4,https://marketplace.example/c/cast-iron-teapots
+cast iron teapot,5,https://teahouse.example/teapots/cast-iron/
+cast iron teapot,6,https://reviews.example/best-cast-iron-teapots/
+cast iron teapot,7,https://bigstore.example/kitchen/teapots/
+cast iron teapot,8,https://forum.example/t/tetsubin-care
+cast iron teapot,9,https://shop2.example/teaware/cast-iron/
+cast iron teapot,10,https://deals.example/cast-iron-teapot/
+how to make matcha,1,https://brewguide.example/matcha/how-to-make/
+how to make matcha,2,https://videohost.example/watch?v=m1
+how to make matcha,3,https://teawiki.example/wiki/Matcha
+how to make matcha,4,https://health.example/how-to-make-matcha/
+how to make matcha,5,https://news.example/food/matcha-at-home/
+how to make matcha,6,https://matchabrand.example/how-to/
+how to make matcha,7,https://forum.example/t/matcha-whisk
+how to make matcha,8,https://recipes.example/matcha-latte/
+how to make matcha,9,https://leafmarket.example/blog/how-to-make-matcha/
+how to make matcha,10,https://videohost.example/watch?v=m2
+buy green tea,1,https://leafmarket.example/green-tea/
+buy green tea,2,https://marketplace.example/c/green-tea
+buy green tea,3,https://teahouse.example/collections/green/
+buy green tea,4,https://shop2.example/green-tea/
+buy green tea,5,https://example.com/green-tea/
+buy green tea,6,https://bigstore.example/grocery/tea/green/
+buy green tea,7,https://shop3.example/catalog/green-tea/
+buy green tea,8,https://deals.example/green-tea/
+buy green tea,9,https://teawiki.example/wiki/Green_tea
+buy green tea,10,https://health.example/green-tea-benefits/
+loose leaf green tea,1,https://teahouse.example/collections/green/
+loose leaf green tea,2,https://leafmarket.example/green-tea/
+loose leaf green tea,3,https://shop3.example/catalog/green-tea/
+loose leaf green tea,4,https://brewguide.example/loose-leaf/
+loose leaf green tea,5,https://marketplace.example/c/green-tea
+loose leaf green tea,6,https://forum.example/t/loose-leaf
+loose leaf green tea,7,https://shop2.example/green-tea/
+loose leaf green tea,8,https://news.example/food/green-tea-guide/
+loose leaf green tea,9,https://bigstore.example/grocery/tea/green/
+loose leaf green tea,10,https://deals.example/loose-leaf-tea/
+buy matcha powder,1,https://leafmarket.example/matcha/
+buy matcha powder,2,https://marketplace.example/c/matcha
+buy matcha powder,3,https://teahouse.example/collections/matcha/
+buy matcha powder,4,https://matchabrand.example/
+buy matcha powder,5,https://shop2.example/matcha/
+buy matcha powder,6,https://bigstore.example/grocery/tea/matcha/
+buy matcha powder,7,https://deals.example/matcha/
+buy matcha powder,8,https://shop3.example/catalog/matcha/
+buy matcha powder,9,https://example.com/green-tea/
+buy matcha powder,10,https://teawiki.example/wiki/Matcha
+cast iron tea kettle,1,https://kitchenstore.example/kettles/cast-iron/
+cast iron tea kettle,2,https://teawiki.example/wiki/Tetsubin
+cast iron tea kettle,3,https://marketplace.example/c/cast-iron-teapots
+cast iron tea kettle,4,https://reviews.example/best-cast-iron-teapots/
+cast iron tea kettle,5,https://bigstore.example/kitchen/teapots/
+cast iron tea kettle,6,https://example.com/teapots/
+cast iron tea kettle,7,https://leafmarket.example/teaware/cast-iron/
+cast iron tea kettle,8,https://forum.example/t/tetsubin-vs-kettle
+cast iron tea kettle,9,https://shop3.example/catalog/kettles/
+cast iron tea kettle,10,https://teahouse.example/teapots/cast-iron/
+ceremonial matcha,1,https://matchabrand.example/ceremonial/
+ceremonial matcha,2,https://leafmarket.example/matcha/
+ceremonial matcha,3,https://teawiki.example/wiki/Matcha
+ceremonial matcha,4,https://teahouse.example/collections/matcha/
+ceremonial matcha,5,https://brewguide.example/matcha/grades/
+ceremonial matcha,6,https://shop3.example/catalog/matcha/
+ceremonial matcha,7,https://forum.example/t/ceremonial-matcha
+ceremonial matcha,8,https://health.example/matcha-benefits/
+ceremonial matcha,9,https://marketplace.example/c/matcha
+ceremonial matcha,10,https://news.example/food/matcha-grades/
+buy oolong tea,1,https://leafmarket.example/oolong/
+buy oolong tea,2,https://marketplace.example/c/oolong
+buy oolong tea,3,https://teahouse.example/collections/oolong/
+buy oolong tea,4,https://shop2.example/oolong/
+buy oolong tea,5,https://shop3.example/catalog/oolong/
+buy oolong tea,6,https://example.com/oolong/
+buy oolong tea,7,https://bigstore.example/grocery/tea/oolong/
+buy oolong tea,8,https://deals.example/oolong/
+buy oolong tea,9,https://teawiki.example/wiki/Oolong
+buy oolong tea,10,https://forum.example/t/oolong
+how to brew oolong,1,https://brewguide.example/oolong/brewing/
+how to brew oolong,2,https://videohost.example/watch?v=o1
+how to brew oolong,3,https://teawiki.example/wiki/Oolong
+how to brew oolong,4,https://forum.example/t/oolong-brewing
+how to brew oolong,5,https://recipes.example/oolong-gongfu/
+how to brew oolong,6,https://health.example/how-to-brew-oolong/
+how to brew oolong,7,https://news.example/food/oolong-explained/
+how to brew oolong,8,https://leafmarket.example/blog/brew-oolong/
+how to brew oolong,9,https://teahouse.example/journal/oolong-guide/
+how to brew oolong,10,https://videohost.example/watch?v=o2
+how to prepare matcha,1,https://brewguide.example/matcha/how-to-make/
+how to prepare matcha,2,https://recipes.example/matcha-latte/
+how to prepare matcha,3,https://videohost.example/watch?v=m1
+how to prepare matcha,4,https://health.example/how-to-make-matcha/
+how to prepare matcha,5,https://matchabrand.example/how-to/
+how to prepare matcha,6,https://teawiki.example/wiki/Matcha
+how to prepare matcha,7,https://forum.example/t/matcha-whisk
+how to prepare matcha,8,https://news.example/food/matcha-at-home/
+how to prepare matcha,9,https://blog.example/matcha-ritual/
+how to prepare matcha,10,https://videohost.example/watch?v=m3
+oolong tea online,1,https://marketplace.example/c/oolong
+oolong tea online,2,https://leafmarket.example/oolong/
+oolong tea online,3,https://shop3.example/catalog/oolong/
+oolong tea online,4,https://teahouse.example/collections/oolong/
+oolong tea online,5,https://bigstore.example/grocery/tea/oolong/
+oolong tea online,6,https://deals.example/oolong/
+oolong tea online,7,https://example.com/
+oolong tea online,8,https://shop2.example/oolong/
+oolong tea online,9,https://teashop4.example/oolong/
+oolong tea online,10,https://forum.example/t/buy-oolong

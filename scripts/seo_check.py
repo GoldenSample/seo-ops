@@ -40,7 +40,7 @@ import zlib
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
-VERSION = "1.0.2"
+VERSION = "1.1.0"
 UA = "seo-ops-check/%s (+https://github.com/GoldenSample/seo-ops)" % VERSION
 MIN_INTERVAL = 0.5          # 2 requests per second
 TIMEOUT = 15
@@ -81,10 +81,11 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Fetcher:
-    def __init__(self, max_requests=60):
+    def __init__(self, max_requests=60, ua=None):
         self.n = 0
         self.max = max_requests
         self.last = 0.0
+        self.ua = ua or UA
         self.opener = urllib.request.build_opener(_NoRedirect())
 
     def tick(self):
@@ -99,7 +100,7 @@ class Fetcher:
             return Resp(-1, error="request budget of %d spent" % self.max, url=url)
         self.tick()
         req = urllib.request.Request(url, method=method, headers={
-            "User-Agent": UA, "Accept": accept, "Accept-Encoding": enc})
+            "User-Agent": self.ua, "Accept": accept, "Accept-Encoding": enc})
         t0 = time.monotonic()
         try:
             r = self.opener.open(req, timeout=TIMEOUT)
@@ -111,6 +112,11 @@ class Fetcher:
             raw = b"" if method == "HEAD" else r.read(maxbytes)
         except Exception as e:
             return Resp(0, error="read: %s" % e, url=url)
+        finally:
+            try:
+                r.close()
+            except Exception:
+                pass
         elapsed = time.monotonic() - t0
         headers = {k.lower(): v for k, v in r.headers.items()}
         if headers.get("content-encoding", "").lower() == "gzip" and raw:
@@ -167,7 +173,10 @@ class Info:
         self.styles = []
         self.ld_raw = []
         self.h1 = 0
+        self.h1_texts = []  # text of each <h1>, whitespace collapsed
         self.a_count = 0
+        self.hrefs = []     # (href, rel) of each <a href>, in page order
+        self.base = None    # <base href>, if any
 
     def meta(self, key):
         key = key.lower()
@@ -192,6 +201,7 @@ class _P(HTMLParser):
         self._in_title = False
         self._title = []
         self._ld = None
+        self._h1 = None
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v if v is not None else "") for k, v in attrs}
@@ -206,12 +216,18 @@ class _P(HTMLParser):
             i.links.append(a)
             if "stylesheet" in a.get("rel", "").lower().split() and a.get("href"):
                 i.styles.append(a["href"])
+        elif tag == "base" and i.base is None and a.get("href"):
+            i.base = a["href"].strip()
         elif tag == "img":
             i.imgs.append(a)
         elif tag == "h1":
             i.h1 += 1
+            self.flush_h1()
+            self._h1 = []
         elif tag == "a":
             i.a_count += 1
+            if "href" in a:
+                i.hrefs.append((a["href"].strip(), a.get("rel", "").lower()))
         elif tag == "script":
             if a.get("src"):
                 i.scripts.append(a["src"])
@@ -225,12 +241,21 @@ class _P(HTMLParser):
         elif tag == "script" and self._ld is not None:
             self.i.ld_raw.append("".join(self._ld))
             self._ld = None
+        elif tag == "h1":
+            self.flush_h1()
 
     def handle_data(self, data):
         if self._in_title:
             self._title.append(data)
         if self._ld is not None:
             self._ld.append(data)
+        if self._h1 is not None:
+            self._h1.append(data)
+
+    def flush_h1(self):
+        if self._h1 is not None:
+            self.i.h1_texts.append(" ".join("".join(self._h1).split()))
+            self._h1 = None
 
 
 def parse_html(text):
@@ -240,6 +265,7 @@ def parse_html(text):
         p.close()
     except Exception:
         pass
+    p.flush_h1()
     return p.i
 
 
@@ -1253,6 +1279,12 @@ def selftest():
                             ("/js/jquery-3.7.1.min.js", False), ("/css/chunk-vendors.css", False),
                             ("/bootstrap5.bundle.min.js", False), ("/theme/style.css", False)):
         need("content hash in %s: %s" % (path, want_hash), has_content_hash(path) is want_hash)
+    info = parse_html('<html><head><base href="/sub/"></head><body><h1> Main <b>title</b>\n</h1>'
+                      '<a href="/a" rel="NoFollow">a</a><a name="x">no href</a><a href=" b?c=1#f ">b</a>'
+                      '<h1></h1></body></html>')
+    need("parser keeps the text of each h1", info.h1 == 2 and info.h1_texts == ["Main title", ""])
+    need("parser keeps each <a href> with its rel", info.hrefs == [("/a", "nofollow"), ("b?c=1#f", "")])
+    need("parser keeps <base href>", info.base == "/sub/")
 
     print("Defects (each check must give FAIL or WARN):")
     bad = ("FAIL", "WARN")

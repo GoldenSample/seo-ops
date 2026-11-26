@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0 (2026-11-26)
+
+- New scripts, Python 3.9+ standard library only:
+  - `seo_crawl.py`: crawl of the whole site from the home page and the sitemap, with no keys: status codes, redirects and chains, canonical, noindex, empty or duplicate title and H1, broken internal links, pages missing from the sitemap, orphans; `--compare` with an earlier crawl. It obeys robots.txt (RFC 9309), keeps 2 requests per second and a URL and time budget, and slows down on 429 and 503. A self-test plants known defects and runs a clean control site.
+  - `seo_index.py`: published pages missing from the Yandex and Google index, with the reason each engine gives, through the Yandex Webmaster API and Search Console URL Inspection, with the owner's keys from the environment. Token values never reach the output.
+  - `wordstat.py`: the official Wordstat API (Yandex Search API): counts and the queries that contain a phrase, dynamics, regions, the regions tree. `--dry-run` shows the requests, the price and the time; the hourly quota is kept; answers are cached.
+  - `serp_cluster.py`: clusters of phrases by shared top-10 URLs from any CSV of results, soft or hard, threshold 3. With `--site` it names the page of the site for each cluster, the candidates for new pages and the pages that compete.
+- `seo_check.py`: its HTML parser also keeps the H1 texts, the links and `<base href>` for the crawl, and every response is closed after reading. Its checks and reports are unchanged.
+- New skill seo-semantic-core: markers, counts, stop list, intent, clusters, one target page per cluster; Arsenkin's MCP server as an optional paid source at each step. seo-launch explains the crawl and index coverage; seo-ops, seo-calendar, seo-measure, seo-query-gaps and seo-content link the new tools.
+- Calendar: 62 tasks (was 58). New: `launch-semantic-core`, `weekly-crawl`, `monthly-index-coverage`, `quarterly-semantic-refresh`. `quarterly-crawl`, `launch-indexing-d14`, `event-migration` and `event-traffic-drop` name the new scripts.
+- Cron: the weekly run also crawls the site (input `crawl_pages`, default 200 URLs, `0` turns it off) and fails on a crawl FAIL. With the index secrets (`YANDEX_WEBMASTER_TOKEN`, `GSC_CLIENT_ID`, `GSC_CLIENT_SECRET`, `GSC_REFRESH_TOKEN`; inputs `index`, `gsc_property`, `google_max`) the monthly run adds the index report to its issue; without them that step is skipped. The issue body is cut to 60 000 bytes.
+- `examples/serp.csv` and `examples/freq.csv`: made-up search results and counts for `serp_cluster.py`; the tests check the README example against them.
+- README in English and Russian: four checked prompts, the new scripts, optional connectors, troubleshooting. It no longer says "not a crawler"; it still needs no tokens by default, and the optional keys are the owner's own.
+- CI runs the crawl self-test and the tests of the index, Wordstat and cluster scripts.
+- Behaviour change for callers of `@v1`: once `v1` points to 1.1.0, the weekly run crawls up to 200 URLs and goes red on a crawl FAIL. Set `crawl_pages: 0` in the weekly caller to keep the 1.0 behaviour.
+- Scripts, the cron workflow and the templates changed, so `v1` moves to 1.1.0.
+
 ## 1.0.2 (2026-11-25)
 
 - Plugin manifest: fields for the Claude plugin directory listing (icon, documentation, support and privacy policy URLs). The icon is the publisher mark of GoldenSample, a square PNG.

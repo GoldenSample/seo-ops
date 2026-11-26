@@ -203,6 +203,17 @@
       "checked": "2026-11-25"
     },
     {
+      "id": "launch-semantic-core",
+      "kind": "once",
+      "offset_days": 0,
+      "what": "Semantic core before the site structure is fixed: markers from the catalog, phrases and counts from Wordstat (scripts/wordstat.py or by hand), a stop list, intent, clusters by shared top-10 results (scripts/serp_cluster.py), one target page per cluster.",
+      "check": "seo/semantic-core.csv (phrase, count with date and region, intent, cluster, target page) is in the site repo; every cluster above the owner's count floor has a target page or a dated not-now line in the decision log.",
+      "who": "human",
+      "skill": "seo-semantic-core",
+      "source": "https://aistudio.yandex.ru/ru/docs/search-api/api-ref/Wordstat/getTop",
+      "checked": "2026-11-26"
+    },
+    {
       "id": "launch-content-baseline",
       "kind": "once",
       "offset_days": 0,
@@ -284,11 +295,11 @@
       "kind": "once",
       "offset_days": 14,
       "what": "Two weeks after launch: which sitemap URLs are indexed in Google and Yandex. Pages that are discovered or crawled but not indexed: improve content or internal links, do not resubmit them every day.",
-      "check": "Search Console Pages report and Yandex Webmaster Pages in search.",
+      "check": "python scripts/seo_index.py <host> with the owner's keys lists the missing pages with the reason (seo-launch, Index coverage); without keys, the Search Console Pages report and Yandex Webmaster Pages in search.",
       "who": "human",
       "skill": "seo-launch",
       "source": "https://yandex.ru/support/webmaster/ru/robot-workings/site-reindex",
-      "checked": "2026-11-25"
+      "checked": "2026-11-26"
     },
     {
       "id": "launch-first-read-d28",
@@ -344,6 +355,17 @@
       "skill": "seo-calendar",
       "source": "",
       "checked": "2026-11-25"
+    },
+    {
+      "id": "weekly-crawl",
+      "kind": "every",
+      "every_days": 7,
+      "what": "Crawl of the whole site from the home page and the sitemap: status codes, redirects and chains, canonical, noindex, empty or duplicate title and H1, broken internal links, pages missing from the sitemap, sitemap URLs no link reaches.",
+      "check": "Scheduled workflow seo-weekly runs seo_crawl.py (crawl_pages, default 200 URLs): no FAIL; new WARN lines are read.",
+      "who": "cron",
+      "skill": "seo-launch",
+      "source": "https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap",
+      "checked": "2026-11-26"
     },
     {
       "id": "weekly-index-snapshot",
@@ -467,6 +489,18 @@
       "checked": "2026-11-25"
     },
     {
+      "id": "monthly-index-coverage",
+      "kind": "every",
+      "every_days": 30,
+      "offset_days": 30,
+      "what": "Published pages missing from the Yandex and Google index, with the reason each engine gives (Webmaster search events and crawl samples, Search Console URL Inspection). Fix the cause (noindex, canonical, redirect, error, thin or duplicate content); do not resubmit the same URLs every day.",
+      "check": "With the index secrets, the seo-monthly issue holds the seo_index.py report; without them, python scripts/seo_index.py <host> with the owner's keys, or Search Console Pages and Yandex Webmaster Pages in search by hand.",
+      "who": "human",
+      "skill": "seo-launch",
+      "source": "https://yandex.ru/dev/webmaster/doc/ru/reference/hosts-search-events-samples",
+      "checked": "2026-11-26"
+    },
+    {
       "id": "monthly-query-gaps",
       "kind": "every",
       "every_days": 30,
@@ -493,12 +527,12 @@
       "id": "quarterly-crawl",
       "kind": "every",
       "every_days": 91,
-      "what": "Full technical crawl with a desktop crawler; compare with the last crawl to catch template regressions.",
-      "check": "Crawl export saved; new issues listed in the decision log.",
+      "what": "Deep crawl: python scripts/seo_crawl.py <host> --max-pages 2000 --max-seconds 0 --json crawl-<date>.json --compare <last crawl JSON>, or a desktop crawler; compare with the last crawl to catch template regressions.",
+      "check": "Crawl JSON saved next to the last one; the crawl-diff line is read; new issues listed in the decision log.",
       "who": "human",
       "skill": "seo-launch",
       "source": "",
-      "checked": "2026-11-25"
+      "checked": "2026-11-26"
     },
     {
       "id": "quarterly-links",
@@ -521,6 +555,18 @@
       "skill": "seo-content",
       "source": "",
       "checked": "2026-11-25"
+    },
+    {
+      "id": "quarterly-semantic-refresh",
+      "kind": "every",
+      "every_days": 91,
+      "offset_days": 91,
+      "what": "Semantic core refresh: new phrases (accepted query gaps, new products, new Wordstat queries for the markers), seasonality of the big markers, fresh top-10 results for new phrases and for clusters whose page lost positions, serp_cluster.py on the whole core; compare the target pages with the last core.",
+      "check": "seo/semantic-core.csv updated with the date; every changed target page has a decision log line.",
+      "who": "human",
+      "skill": "seo-semantic-core",
+      "source": "https://aistudio.yandex.ru/ru/docs/search-api/api-ref/Wordstat/getDynamics",
+      "checked": "2026-11-26"
     },
     {
       "id": "quarterly-rules-recheck",
@@ -603,12 +649,12 @@
       "id": "event-traffic-drop",
       "kind": "event",
       "trigger": "traffic drop",
-      "what": "Traffic drop runbook: check the Google Search Status Dashboard and Yandex Webmaster news first, then dashboard errors, server logs and the last deploys; compare equal windows before and after; roll back one change at a time.",
+      "what": "Traffic drop runbook: check the Google Search Status Dashboard and Yandex Webmaster news first, then dashboard errors, a fresh crawl compared with the last one (seo_crawl.py --compare), pages missing from the index (seo_index.py), server logs and the last deploys; compare equal windows before and after; roll back one change at a time.",
       "check": "Decision log line with the cause found or the next check.",
       "who": "human",
       "skill": "seo-measure",
       "source": "https://status.search.google.com/",
-      "checked": "2026-11-25"
+      "checked": "2026-11-26"
     },
     {
       "id": "event-core-update",
@@ -625,12 +671,12 @@
       "id": "event-migration",
       "kind": "event",
       "trigger": "redesign or domain move",
-      "what": "Redesign or domain move: redirect map for every old URL, crawl before and after, watch indexing for 4 to 8 weeks.",
-      "check": "Crawl after the move: no old URL answers 404.",
+      "what": "Redesign or domain move: redirect map for every old URL, crawl before and after (seo_crawl.py --json before the move, --compare after it), watch indexing for 4 to 8 weeks (seo_index.py).",
+      "check": "After the move every old URL of the before crawl answers a redirect to its new page; none answers 404.",
       "who": "human",
       "skill": "seo-launch",
       "source": "https://developers.google.com/search/docs/crawling-indexing/site-move-with-url-changes",
-      "checked": "2026-11-25"
+      "checked": "2026-11-26"
     },
     {
       "id": "event-data-outage",
